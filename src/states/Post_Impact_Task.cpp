@@ -134,7 +134,7 @@ void Post_Impact_Task::log_values(mc_control::fsm::Controller & ctl_)
 {
     auto & ctl = static_cast<HammeringTaskNew &>(ctl_);
 
-    ctl.effective_mass = ctl.compute_effective_mass_with_mbc();
+    ctl.effective_mass = ctl.compute_effective_mass_with_mbc(ctl.robot().mbc(),ctl,ctl.normal_vector_nail_frame);
     ctl.hammer_tip_actual_velocity_vector = ctl.robot().frame(ctl.hammer_head_frame_name).velocity().linear();
     ctl.hammer_tip_actual_position_vector = ctl.robot().frame(ctl.hammer_head_frame_name).position().translation();
     ctl.hammer_tip_reference_velocity_vector = {0, 0, 0};

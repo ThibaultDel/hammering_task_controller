@@ -5,7 +5,7 @@
 #include <Eigen/src/Geometry/Quaternion.h>
 #include <cmath>
 #include <mc_rtc/logging.h>
-
+#include <fstream> // Required for file operations
 
 
 void Get_In_Position_Task::configure(const mc_rtc::Configuration & config)
@@ -19,15 +19,12 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
 {
   HammeringTaskNew &ctl = static_cast<HammeringTaskNew &>(ctl_);
   load_params();
-
   add_logs(ctl_);
  
   // Add a stop button to the gui
   ctl.gui()->addElement({}, mc_rtc::gui::Button(ctl.stop_hammering_button_name, [this]() { stop = true; }));
 
   // ------------------------- BSplineTrajectoryTask ----------------------------
-  
-  
   // I dont need to specify the endpoint as a posWp because _target takes care of that
   // If I do specify it, then it would add 1 degree to the curve even though the points are the same
   // I also dont need to specify the starting point because the first argument of the task takes care of that
@@ -43,7 +40,7 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   _oriWp = {};
   
   // The target is the translation of the nail
-  _nail_point = ctl.robots().robot(ctl.nail_robot_name).frame(ctl.nail_frame_name).position().translation();
+  _nail_point = _magic_fake_nail_pos;
   _end_point = _nail_point + Eigen::Vector3d(0, 0, 0);
   _posWp = {/*_nail_point*/};
 
@@ -206,7 +203,7 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
 
   _new_mbc = ctl.robot().mbc();
 
-  ctl.effective_mass = /*ctl.*/compute_effective_mass_with_mbc(_new_mbc, ctl, ctl.nail_normal_vector_world_frame);
+  ctl.effective_mass = ctl.compute_effective_mass_with_mbc(_new_mbc, ctl, ctl.nail_normal_vector_world_frame);
 
   previous_effective_mass = ctl.effective_mass;
 }
@@ -251,7 +248,7 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
   //                                                 ctl, 
   //                                                 ctl.nail_normal_vector_world_frame);
 
-  ctl.effective_mass = compute_effective_mass_with_mbc(_new_mbc, ctl, ctl.nail_normal_vector_world_frame);
+  ctl.effective_mass = ctl.compute_effective_mass_with_mbc(_new_mbc, ctl, ctl.nail_normal_vector_world_frame);
   ctl.effective_mass_diff = (ctl.effective_mass - previous_effective_mass)/ctl.solver().dt();
   ctl.effective_mass_diff_diff = (ctl.effective_mass_diff - previous_eff_mass_diff)/ctl.solver().dt();
   previous_effective_mass = ctl.effective_mass;
@@ -300,7 +297,6 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
                                                                             ctl, 
                                                                 ctl.nail_normal_vector_world_frame);
 
-
   // "Modified" posture task or trick
   int number_of_joints = ctl.robot().tvmRobot().qJoints()->size();
 
@@ -329,8 +325,7 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
   // bool impact_trhough_position = (ctl.hammer_tip_actual_position_vector[0] >= _end_point[0] - impact_detection_position_threshold || ctl.hammer_tip_actual_position_vector[0] <= _end_point[0] + impact_detection_position_threshold) &&
   //                                (ctl.hammer_tip_actual_position_vector[1] >= _end_point[1] - impact_detection_position_threshold || ctl.hammer_tip_actual_position_vector[1] <= _end_point[1] + impact_detection_position_threshold) &&
   //                                ctl.hammer_tip_actual_position_vector[2] <= _end_point[2];
-
-
+  
   // if(iii > _logging_freq && ctl.bspline_active_){
   //   // auto error = _BSplineVel->eval();
   //   // auto tracking_error = _BSplineVel->evalTracking();
@@ -395,62 +390,40 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
       mc_rtc::log::info(" - {}", task->name());
     }
   }
+  //log bspline point
 
-  //
-  //   // The target is the translation of the nail
-  //   Eigen::Vector3d _nail_point = ctl.robots().robot(ctl.nail_robot_name).frame(ctl.nail_frame_name).position().translation();
-  //   _end_point = _nail_point + Eigen::Vector3d(0, 0, -0.1);
-  //   auto gripper_target = sva::PTransformd(Eigen::Quaterniond(0.0f, 0.708, 0.0f, -0.705)) * sva::PTransformd(_end_point);//sva::PTransformd(Eigen::Vector3d(0.7, 0.5, 1)) *
-  //   gripper_task->target(gripper_target);
-  //   ctl.solver().addTask(gripper_task);
-  //
-  //
-  //   // _constr.init_vel = ctl.hammer_tip_actual_velocity_vector;
-  //   // _constr.end_vel = ctl.nail_rot.transpose()*_magic_normal_final_velocity;
-  //   //
-  //   // // The target is the translation of the nail
-  //   // Eigen::Vector3d _nail_point = ctl.robots().robot(ctl.nail_robot_name).frame(ctl.nail_frame_name).position().translation();
-  //   // _end_point = _nail_point + Eigen::Vector3d(0, 0, -0.1);
-  //   //
-  //   // _target = sva::PTransformd(sva::RotX(M_PI)) * sva::PTransformd(sva::RotY(M_PI/2)) * sva::PTransformd(ctl.robots().robot(ctl.nail_robot_name).frame(ctl.nail_frame_name).position().rotation()) *sva::PTransformd(_end_point);//* sva::PTransformd(Eigen::Vector3d(0.5, 0.2, 1));
-  //   //
-  //   // mc_rtc::log::info("Adding BSpline task with weight {}", _magic_BSpline_task_weight);
-  //   //
-  //   // _BSplineVel2 = std::make_shared<mc_tasks::BSplineTrajectoryTask>(ctl.robot().frame(ctl.hammer_head_frame_name),
-  //   //                                                                 0.1/_magic_normal_final_velocity[2], // duration depends on the final velocity along z
-  //   //                                                                 _magic_BSpline_task_stiffness,
-  //   //                                                                 _magic_BSpline_task_weight,
-  //   //                                                                 _target,
-  //   //                                                                 _constr,
-  //   //                                                                 _posWp,
-  //   //                                                                 _oriWp);
-  //   //
-  //   // Eigen::Vector6d dimweights = _BSplineVel2->dimWeight();
-  //   // // Remove the orientation part of the BSpline by setting the orientation weights to 0
-  //   // if(!_enable_BSpline_orientation)
-  //   // {
-  //   //   dimweights(0) = 0;
-  //   //   dimweights(1) = 0;
-  //   //   dimweights(2) = 0;
-  //   // }
-  //   // // Increase the weights on the x and y coordinates
-  //   // dimweights(3) = _magic_BSpline_task_dimweight_x;
-  //   // dimweights(4) = _magic_BSpline_task_dimweight_y;
-  //   // dimweights(5) = _magic_BSpline_task_dimweight_z;
-  //   // _BSplineVel2->dimWeight(dimweights);
-  //   // ctl.solver().addTask(_BSplineVel2);
-  //
-  // }
+  if(ctl.flag){
+    ctl.flag=0;
+    int bspline_number_of_points=1000;
+    _BSplineVel->spline().samplingPoints(bspline_number_of_points);
+    std::ofstream outputFile("/home/thibault/bspline.txt");
 
-  if(ctl.impact_detected || impact_trhough_position/*stop*/)
+    if (!outputFile.is_open()) {
+        mc_rtc::log::info("Error: Could not create or open the file!");
+    }
+
+    for (const auto& vec : _BSplineVel->spline().sampleTrajectory()) {
+        outputFile << vec.transpose() << "a";
+    }
+
+    // 4. Close the file stream to save changes and free resources
+    outputFile.close();
+    
+    mc_rtc::log::info("b spline text file written");
+  }
+
+  if(ctl.impact_detected/*stop*/)
   {
     ctl.number_of_hits++;
 
+    //I don't know why but apparently TVMImpulsiveConstraint is not recognised as a type
+    //ctl.logger().addLogEntry("ImpulsiveTorqueTrue", this, [&, this]()
+    //{return static_cast<TVMImpulseConstraint *>(ctl.impulseConstraint->getConstraint().get())->impFunctionLow()->ImpulsiveTorqueTrue();});
+    //ctl.logger().removeLogEntry("ImpulsiveTorqueTrue");
 
     // Manually set the floating base pose, velocity and acceleration in the world frame from the bodysensor
     ctl.comparisonRobots_->robot().posW(sva::PTransformd(ctl.floatingBaseSensor_.orientation(), ctl.floatingBaseSensor_.position()));
     ctl.comparisonRobots_->robot().mbc().q = ctl.realRobot().mbc().q;
-
 
     Eigen::Vector3d hammer_normal_world_frame = (ctl.robot().frame(ctl.hammer_head_frame_name).position().rotation().transpose()*Eigen::Vector3d(1, 0, 0)).normalized();
     Eigen::Vector3d hammer_normal_world_frame_bodysensor = (ctl.comparisonRobots_->robot().frame(ctl.hammer_head_frame_name).position().rotation().transpose()*Eigen::Vector3d(1, 0, 0)).normalized();
@@ -562,36 +535,7 @@ const double Get_In_Position_Task::compute_projected_momentum(
 }  // TODO: should this not use the 2-norm?
 
 
-const double Get_In_Position_Task::compute_effective_mass_with_mbc(
-  rbd::MultiBodyConfig mbc, 
-  mc_control::fsm::Controller & ctl_, 
-  const Eigen::Vector3d &normal_vector) const{
 
-  HammeringTaskNew &ctl = static_cast<HammeringTaskNew &>(ctl_);
-    
-  // If you dont put this line the gradient is 0 everywhere because M and J are not updating
-  ctl.robot().forwardKinematics(mbc);                                               
-                                                        
-
-  rbd::MultiBody robot_mb = ctl_.robot().mb();
-  rbd::Jacobian jac(robot_mb, ctl.hammer_head_frame_name);
-  Eigen::MatrixXd world_frame_jacobian = jac.jacobian(robot_mb, mbc);
-
-  Eigen::MatrixXd full_world_frame_jacobian(6, ctl.robot().mb().nrDof());
-  jac.fullJacobian(robot_mb, world_frame_jacobian, full_world_frame_jacobian);
-
-  rbd::ForwardDynamics fd(robot_mb);
-  fd.computeH(robot_mb, mbc);
-  Eigen::MatrixXd M = fd.H();
-
-  const Eigen::MatrixXd linear_jacobian = full_world_frame_jacobian.bottomRows(3);
-
-  const Eigen::Matrix3d LAMBDA = linear_jacobian*M.inverse()*linear_jacobian.transpose();
-
-  return 1/(normal_vector.transpose()*LAMBDA*normal_vector);
-
-
-}
 
 // const double Get_In_Position_Task::compute_effective_mass_with_mbc(
 //   rbd::MultiBodyConfig mbc, 
@@ -696,7 +640,7 @@ const Eigen::VectorXd Get_In_Position_Task::compute_emass_gradient_backward_diff
   const double epsilon = 1E-6;
   Eigen::VectorXd grad(ctl.robot().mb().nrDof(), 1);
   grad.setOnes();
-  double m_q = compute_effective_mass_with_mbc(mbc, ctl_, normal_vector);
+  double m_q = ctl.compute_effective_mass_with_mbc(mbc, ctl_, normal_vector);
   double backward_effective_mass = 0;
   
   unsigned int j = 0;
@@ -713,7 +657,7 @@ const Eigen::VectorXd Get_In_Position_Task::compute_emass_gradient_backward_diff
     backward_mbc.q.at(i).at(0) -= epsilon;
 
     //Finite differences
-    backward_effective_mass = compute_effective_mass_with_mbc(backward_mbc, ctl_, normal_vector);
+    backward_effective_mass = ctl.compute_effective_mass_with_mbc(backward_mbc, ctl_, normal_vector);
     grad(j,0) = (m_q - backward_effective_mass)/epsilon;
     j+=1;
       
@@ -737,7 +681,7 @@ const Eigen::VectorXd Get_In_Position_Task::compute_emass_gradient_three_point_b
   Eigen::VectorXd grad(ctl.robot().mb().nrDof(), 1);
   grad.setZero();
   double backward_effective_mass = 0;
-  double m_q = compute_effective_mass_with_mbc(mbc, ctl_, normal_vector);
+  double m_q = ctl.compute_effective_mass_with_mbc(mbc, ctl_, normal_vector);
 
   unsigned int j = 0;
   if (ctl.robot().mb().nrDof() > ctl.robot().tvmRobot().qJoints()->size())
@@ -771,8 +715,8 @@ const Eigen::VectorXd Get_In_Position_Task::compute_emass_gradient_three_point_b
     p1.q.at(i).at(0) -= 2*epsilon;
     p2.q.at(i).at(0) -= epsilon;
 
-    first_term = compute_effective_mass_with_mbc(p1, ctl_, normal_vector);
-    second_term = compute_effective_mass_with_mbc(p2, ctl_, normal_vector);
+    first_term = ctl.compute_effective_mass_with_mbc(p1, ctl_, normal_vector);
+    second_term = ctl.compute_effective_mass_with_mbc(p2, ctl_, normal_vector);
 
     //Finite differences
     backward_effective_mass = first_term - 4*second_term + 3*m_q;
@@ -819,10 +763,10 @@ const Eigen::VectorXd Get_In_Position_Task::compute_emass_gradient_central_diffe
       backward_mbc.q.at(i).at(0) -= dqi;
 
       //Finite differences - Central differences
-      forward_effective_mass = compute_effective_mass_with_mbc(forward_mbc, 
+      forward_effective_mass = ctl.compute_effective_mass_with_mbc(forward_mbc, 
                                                                 ctl, 
                                                                   normal_vector);
-      backward_effective_mass = compute_effective_mass_with_mbc(backward_mbc, 
+      backward_effective_mass = ctl.compute_effective_mass_with_mbc(backward_mbc, 
                                                                   ctl, 
                                                                   normal_vector);
 
@@ -1408,6 +1352,7 @@ void Get_In_Position_Task::load_params()
   _gripper_task_goal_error = _config(magic_values_key)("gripper_task_goal_error");
   _gripper_task_K_scaling_factor = _config(magic_values_key)("gripper_task_s");
 
+  _magic_fake_nail_pos =  _config(magic_values_key)("fake_nail_pos");
   // ------------------------ Loading init and start velocities, accelerations and jerks ---------------------------
 
 
@@ -1439,23 +1384,25 @@ void Get_In_Position_Task::add_logs(mc_control::fsm::Controller & ctl_)
 {
   HammeringTaskNew &ctl = static_cast<HammeringTaskNew &>(ctl_);
 
-  ctl.logger().addLogEntry("Hammer tip reference bezier velocity [m/s]", this, [&, this]()
+  ctl.logger().addLogEntry("GetInPoseTask_Hammer tip reference bezier velocity [m/s]", this, [&, this]()
   {return ctl.hammer_tip_reference_velocity_vector;});
 
-  ctl.logger().addLogEntry("Hammer tip reference bezier position [m]", this, [&, this]()
+  ctl.logger().addLogEntry("GetInPoseTask_Hammer tip reference bezier position [m]", this, [&, this]()
   {return ctl.hammer_tip_reference_position_vector;});
 
-  ctl.logger().addLogEntry("Bspline tracking error [m]", this, [&, this]()
+  ctl.logger().addLogEntry("GetInPoseTask_Bspline tracking error [m]", this, [&, this]()
   {return ctl.bspline_tracking_error;});
 
-  ctl.logger().addLogEntry("Vector orientation error", this, [&, this]()
-  {return ctl.vector_orientation_error;});
+  ctl.logger().addLogEntry("GetInPoseTask_Vector orientation error", this, [&, this]()
+  {return ctl.vector_orientation_error*180/M_PI;});
 
-  ctl.logger().addLogEntry("Bspline eval", this, [&, this]()
+  ctl.logger().addLogEntry("GetInPoseTask_Bspline eval", this, [&, this]()
   {return ctl.bspline_eval;});
-  ctl.logger().addLogEntry("Bspline eval norm", this, [&, this]()
+  ctl.logger().addLogEntry("GetInPoseTask_Bspline eval norm", this, [&, this]()
   {return ctl.bspline_eval_norm;});
 
+  ctl.logger().addLogEntry("impact_detected",this,[&,this]()
+  {return ctl.impact_detected;});
   // ctl.logger().addLogEntry("Hitting_angle", this, [&, this]()
   // {return ctl.last_hitting_angle;});
   // ctl.logger().addLogEntry("Hitting_point", this, [&, this]()
@@ -1466,19 +1413,21 @@ void Get_In_Position_Task::add_logs(mc_control::fsm::Controller & ctl_)
   // ctl.logger().removeLogEntry("Hitting_angle");
   // ctl.logger().removeLogEntry("Hitting_point");
   // ctl.logger().removeLogEntry("Hitting_pointError");
-
 }
 
 void Get_In_Position_Task::rm_logs(mc_control::fsm::Controller & ctl_)
 {
   HammeringTaskNew &ctl = static_cast<HammeringTaskNew &>(ctl_);
 
-  ctl.logger().removeLogEntry("Hammer tip reference bezier velocity [m/s]");
-  ctl.logger().removeLogEntry("Hammer tip reference bezier position [m]");
-  ctl.logger().removeLogEntry("Bspline tracking error [m]");
-  ctl.logger().removeLogEntry("Vector orientation error");
-  ctl.logger().removeLogEntry("Bspline eval");
-  ctl.logger().removeLogEntry("Bspline eval norm");
+  ctl.logger().removeLogEntry("GetInPoseTask_Hammer tip reference bezier velocity [m/s]");
+  ctl.logger().removeLogEntry("GetInPoseTask_Hammer tip reference bezier position [m]");
+  ctl.logger().removeLogEntry("GetInPoseTask_Bspline tracking error [m]");
+  ctl.logger().removeLogEntry("GetInPoseTask_Vector orientation error");
+  ctl.logger().removeLogEntry("GetInPoseTask_Bspline eval");
+  ctl.logger().removeLogEntry("GetInPoseTask_Bspline eval norm");
+  ctl.logger().removeLogEntry("GetInPoseTask_angle eval");
+  ctl.logger().removeLogEntry("impact_detected");
+
 }
 
 EXPORT_SINGLE_STATE("Get_In_Position_Task", Get_In_Position_Task)

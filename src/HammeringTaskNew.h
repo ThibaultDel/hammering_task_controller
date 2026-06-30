@@ -33,7 +33,6 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
 
     void reset(const mc_control::ControllerResetData & reset_data) override;
 
-    const double compute_effective_mass_with_mbc();
 
     bool impact_detected = false;
     // ROS
@@ -48,7 +47,8 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
     const Eigen::Vector3d normal_vector_nail_frame = {0, 0, 1};
     Eigen::Vector3d nail_normal_vector_world_frame = {0, 0, 0};
     Eigen::Vector3d nail_force_vector = {0, 0, 0};
-
+    Eigen::Vector3d nail_force_vector_old = {0, 0, 0};
+    Eigen::Matrix<double, 6, 6> P_n; //projector nail n*n^T
     // Logs
     double effective_mass = 0.0f;
     double effective_mass_diff = 0.0f;
@@ -59,6 +59,8 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
     Eigen::Vector3d hammer_tip_actual_position_vector_realrobot = {0, 0, 0};
     Eigen::Vector3d hammer_tip_position_observer_error = {0, 0, 0};
     Eigen::Vector3d floating_base_position_observer_error = {0, 0, 0};
+    
+    Eigen::VectorXd full_world_frame_jacobian_log;
 
     Eigen::Vector3d hammer_tip_reference_velocity_vector = {0, 0, 0};
     Eigen::Vector3d hammer_tip_reference_position_vector = {0, 0, 0};
@@ -68,6 +70,15 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
     bool bspline_active_ = false;
     double projected_momentum_of_hammer_tip = 0.0f;
     double vector_orientation_error = 0.0f;
+    
+    double time_step=0.0f;
+
+    std::vector<double> qd;
+    Eigen::VectorXd qdm;
+    Eigen::VectorXd qd_previous;
+    Eigen::VectorXd tau_imp_true_speed; 
+    Eigen::VectorXd tau_imp_act;
+    Eigen::VectorXd end_effector_velocity;
 
     std::vector<std::vector<double>> base_posture_vector;
     double base_posture_weight = 1.0f;
@@ -161,6 +172,10 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
     bool hittingforce_data_to_log = false;
     bool hittingforce_logging_entry_to_remove = false;
     int number_of_hits = 0;
+    Eigen::VectorXd Impulsive_torque_f;
+    Eigen::VectorXd Impulsive_torque_projected_f;
+    bool flag=1;
+    std::vector<double> q_val;
 
     // Robot double:
     std::shared_ptr<mc_rbdyn::Robots> comparisonRobots_;
@@ -169,7 +184,13 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
 
     int max_number_of_hits = 50;
 
+    double compute_effective_mass_with_mbc(rbd::MultiBodyConfig mbc, 
+                                                mc_control::fsm::Controller & ctl_, 
+                                                const Eigen::Vector3d &normal_vector);
+
   private:
+
+
     /**
     @brief Loads the parameters found in the HammeringTaskNew.in.yaml file
     */

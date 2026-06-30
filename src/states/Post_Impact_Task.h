@@ -29,7 +29,7 @@ struct Post_Impact_Task : mc_control::fsm::State
     sva::PTransformd _target_transform;
     Eigen::Vector3d _nail_point;
     double _transform_task_stiffness = 30.0f;
-    double _transform_task_damping = 17.0f;
+    double _transform_task_damping = 30.0f; //17
     double _transform_task_weight = 2000.0f;
     double _magic_BSpline_task_dimweight_x = 1.0f;
     double _magic_BSpline_task_dimweight_y = 1.0f;

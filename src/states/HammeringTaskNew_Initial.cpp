@@ -39,7 +39,7 @@ void HammeringTaskNew_Initial::start(mc_control::fsm::Controller & ctl_)
 bool HammeringTaskNew_Initial::run(mc_control::fsm::Controller & ctl_)
 {
   auto & ctl = static_cast<HammeringTaskNew &>(ctl_);
-  // static_cast<TVMImpulseConstraint *>(constraint_.get())
+  // static_cast<r *>(constraint_.get())
   // static_cast<TVMImpulseConstraint *>(ctl.impulseConstraint->getConstraint().get())->impFunctionLow()->runUpdateA();
   // ctl.impulseConstraint->getConstraint().get()->impFunctionLow()->runUpdateB();
   // ctl.impulseConstraint->getConstraint().get()->impFunctionHigh()->runUpdateB();

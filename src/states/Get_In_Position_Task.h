@@ -10,11 +10,18 @@
 #include <SpaceVecAlg/MotionVec.h>
 #include <SpaceVecAlg/SpaceVecAlg>
 #include <mc_solver/DynamicsConstraint.h>
+#include <mc_solver/ImpulseConstraint.h>
 #include <mc_tasks/BSplineTrajectoryTask.h>
 #include <mc_tasks/PositionTask.h>
 #include <mc_trajectory/BSpline.h>
-#include <mc_solver/ImpulseConstraint.h>
 // #include <mc_solver/CoMIncPlaneConstr.h>
+
+#include <mc_solver/TVMImpulseConstraint.h>
+#include <mc_solver/TVMKinematicsConstraint.h>
+#include <mc_solver/ImpulseConstraint.h>
+
+
+
 
 #include <memory>
 #include <ndcurves/curve_constraint.h>
@@ -49,6 +56,7 @@ struct Get_In_Position_Task : mc_control::fsm::State
 
   private:
 
+    
     // BSpline curve
     std::shared_ptr<mc_tasks::BSplineTrajectoryTask> _BSplineVel;
     // std::shared_ptr<mc_tasks::ExactCubicTrajectoryTask> _BSplineVel2;
@@ -67,6 +75,8 @@ struct Get_In_Position_Task : mc_control::fsm::State
     Eigen::Vector3d _end_point;
     Eigen::Vector3d _target_velocity;
     sva::MotionVecd _target_vel;
+
+    Eigen::Vector3d _magic_fake_nail_pos = {0, 0, 0};
 
     // Transform task to test tvm
     std::shared_ptr<mc_tasks::TransformTask> gripper_task;
@@ -259,6 +269,7 @@ struct Get_In_Position_Task : mc_control::fsm::State
     bool _enable_BSpline_orientation = false;
 
     int _logging_freq = 1;
+
 
 
 
