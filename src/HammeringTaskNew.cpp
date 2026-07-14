@@ -50,35 +50,8 @@ HammeringTaskNew::HammeringTaskNew(mc_rbdyn::RobotModulePtr rm, double dt, const
   // Add impulse constraint
   Eigen::Vector3d normal_nail = robot(nail_robot_name).frame(nail_frame_name).position().rotation().col(2).eval();
   mc_rtc::log::info("the normal nail norm {}", normal_nail.norm());
-
   impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(robots(), robot().robotIndex(), robot().frame(hammer_head_frame_name), normal_nail, _lambda_high, _lambda_low, _delta_t, _c_res, _dt_multi, logger());
-  // solver().addConstraintSet(impulseConstraint);
-
-  // Print the joint names of the jionts in the q vector
-  // mc_rtc::log::info("the robot has {} joints", robot().mb().nrJoints());
-  // for (int i=0; i<robot().mb().nrJoints(); ++i)
-  // {
-  //   const rbd::Joint & joint = robot().mb().joint(i);
-  //   for (size_t j=0; j<joint.dof(); ++j)
-  //   {
-  //     mc_rtc::log::info("{}", joint.name());
-  //   }
-  // }
-  //
-  // for (auto frame : robot().frames())
-  // {
-  //   mc_rtc::log::info("Frame {} is in {}", frame, robot().name());
-  // }
-
-  // mc_rtc::log::info(robot().tvmRobot().limits().tu);
-
-  // controller->robots().robot(r.name).module().ref_joint_order()
-  // // Add arrow to check whether we use the correct normal vector
-  // start_ = robot(nail_robot_name).frame(nail_frame_name).position().translation();
-  // end_ = start_ + 0.2*robot(nail_robot_name).frame(nail_frame_name).position().rotation().col(2).eval();
-  // gui()->addElement({"a", "b"},
-  // mc_rtc::gui::Arrow("ArrowRO", [this]() { return start_; }, [this]() { return end_; })
-  // );
+  solver().addConstraintSet(impulseConstraint);
 
   // Load default configuration from robot module
   stabiConf = robot().module().defaultLIPMStabilizerConfiguration();
@@ -160,8 +133,8 @@ bool HammeringTaskNew::run()
 
   hammer_tip_actual_position_vector_realrobot = comparisonRobots_->robot().frame(hammer_head_frame_name).position().translation();
 
-  hammer_tip_actual_position_vector = comparisonRobots_->robot().frame(hammer_head_frame_name).position().translation();
-  hammer_tip_actual_velocity_vector = comparisonRobots_->robot().frame(hammer_head_frame_name).velocity().linear();
+  hammer_tip_actual_position_vector = robot().frame(hammer_head_frame_name).position().translation();
+  hammer_tip_actual_velocity_vector = robot().frame(hammer_head_frame_name).velocity().linear();
 
   hammer_tip_position_observer_error = hammer_tip_actual_position_vector - hammer_tip_actual_position_vector_realrobot;
   floating_base_position_observer_error = comparisonRobots_->robot().posW().translation() - robot().posW().translation();
@@ -177,17 +150,17 @@ bool HammeringTaskNew::run()
   contacts_eval = stabilizerTask->contacteval();
   // contacts_eval = Eigen::VectorXd::Zero(6);
 
-  rbd::Jacobian jac(comparisonRobots_->robot().mb(), hammer_head_frame_name);
-  Eigen::MatrixXd world_frame_jacobian = jac.jacobian(comparisonRobots_->robot().mb(),comparisonRobots_->robot().mbc());
+  rbd::Jacobian jac(robot().mb(), hammer_head_frame_name);
+  Eigen::MatrixXd world_frame_jacobian = jac.jacobian(robot().mb(), robot().mbc());
 
   //Impulsive torque nail force method
-  Eigen::MatrixXd full_world_frame_jacobian(6, comparisonRobots_->robot().mb().nrDof());
+  Eigen::MatrixXd full_world_frame_jacobian(6, robot().mb().nrDof());
   Eigen::MatrixXd & J_ = full_world_frame_jacobian;
-  jac.fullJacobian(comparisonRobots_->robot().mb(), world_frame_jacobian, J_);
+  jac.fullJacobian(robot().mb(), world_frame_jacobian, J_);
 
-
-  Eigen::MatrixXd P_n_sub = nail_normal_vector_world_frame * nail_normal_vector_world_frame.transpose()/pow(nail_normal_vector_world_frame.norm(),2);
-  Eigen::MatrixXd linear_jacobian = full_world_frame_jacobian.bottomRows(3);
+  Eigen::MatrixXd P_n_sub = (nail_normal_vector_world_frame * nail_normal_vector_world_frame.transpose()).normalized();
+  //Eigen::MatrixXd linear_jacobian = full_world_frame_jacobian.bottomRows(3);
+  Eigen::MatrixXd linear_jacobian = J_.bottomRows(3);
 
   Impulsive_torque_f=linear_jacobian.transpose()*nail_force_vector;
   Impulsive_torque_projected_f=linear_jacobian.transpose()*P_n_sub*nail_force_vector;
@@ -195,11 +168,11 @@ bool HammeringTaskNew::run()
   //Impulsive torque speed difference method
 
   P_n = Eigen::Matrix<double, 6, 6>::Zero();
-  P_n.block<3,3>(0,0) = P_n_sub;
+  P_n.block<3,3>(3,3) = P_n_sub;
 
-  qd=comparisonRobots_->robot().encoderVelocities();
+  qd=robot().encoderVelocities();
 
-  qdm = Eigen::VectorXd::Zero(comparisonRobots_->robot().mb().nrDof());
+  qdm = Eigen::VectorXd::Zero(robot().mb().nrDof());
 
   qdm(0) = 0.0;
   qdm(1) = 0.0;
@@ -244,13 +217,12 @@ bool HammeringTaskNew::run()
   qdm(40) = qd.at(25);//RHDY
 
 
-  
-  effective_mass=compute_effective_mass_with_mbc(comparisonRobots_->robot().mbc(),*this,nail_normal_vector_world_frame);
-  tau_imp_true_speed=(J_.transpose()*effective_mass*P_n*J_)*(qd_previous-qdm)/_delta_t;
-  tau_imp_act = (-1.f*(_c_res+1)/_delta_t)*J_.transpose()*effective_mass*P_n*J_*qdm;// use just for logging
+  effective_mass=compute_effective_mass_with_mbc(robot().mbc(),*this,nail_normal_vector_world_frame);
+  Eigen::MatrixXd effective_mass_matrix=(J_*robot().tvmRobot().H().inverse()*J_.transpose()).inverse();
+  tau_imp_true_speed=(J_.transpose()*effective_mass_matrix*P_n*J_)*(qd_previous-qdm)/_delta_t;
+  tau_imp_act = (-1.f*(_c_res+1)/_delta_t)*J_.transpose()*effective_mass_matrix*P_n*J_*qdm;// use just for logging
   
   qd_previous = qdm;
-
 
   com_eval_norm = com_eval.norm();
   pelvis_eval_norm = pelvis_eval.norm();
@@ -275,11 +247,8 @@ double HammeringTaskNew::compute_effective_mass_with_mbc(
   const Eigen::Vector3d &normal_vector){
 
   HammeringTaskNew &ctl = static_cast<HammeringTaskNew &>(ctl_);
-    
+
   // If you dont put this line the gradient is 0 everywhere because M and J are not updating
-  ctl.robot().forwardKinematics(mbc);                                               
-                                    
-  
   rbd::MultiBody robot_mb = ctl_.robot().mb();
   rbd::Jacobian jac(robot_mb, ctl.hammer_head_frame_name);
   Eigen::MatrixXd world_frame_jacobian = jac.jacobian(robot_mb, mbc);
@@ -291,11 +260,10 @@ double HammeringTaskNew::compute_effective_mass_with_mbc(
   fd.computeH(robot_mb, mbc);
   Eigen::MatrixXd M = fd.H();
   
- 
-  Eigen::MatrixXd linear_jacobian = full_world_frame_jacobian.bottomRows(3);
-  end_effector_velocity=linear_jacobian*qdm;
 
+  Eigen::MatrixXd linear_jacobian = full_world_frame_jacobian.bottomRows(3);
   Eigen::Matrix3d LAMBDA = linear_jacobian*M.inverse()*linear_jacobian.transpose();
+  end_effector_velocity=linear_jacobian*qdm;
   return 1/(normal_vector.transpose()*LAMBDA*normal_vector);
   }
 
@@ -342,7 +310,9 @@ void HammeringTaskNew::load_parameters()
   // ------------------------ Loading magic values ---------------------------
 
   std::string magic_values_key = "magic_values";
-  magic_force_threshold = config_(global_controller)(magic_values_key)("magic_force_threshold");
+  magic_force_threshold_nail = config_(global_controller)(magic_values_key)("magic_force_threshold_nail");
+  magic_force_threshold_sensor = config_(global_controller)(magic_values_key)("magic_force_threshold_sensor");
+
   max_number_of_hits = config_(global_controller)(magic_values_key)("max_number_of_hits");
 
   // ------------------------ Loading constraint parameters ---------------------------
@@ -387,12 +357,6 @@ void HammeringTaskNew::add_logs()
     logger().addLogEntry("Hammer tip velocity controller", this, [&,this]()
     {return end_effector_velocity;});
 
-    logger().addLogEntry("velocities robot_comparison", this, [&,this]()
-    {return q_val;});
-
-    logger().addLogEntry("speed robot_robot", this, [&,this]()
-    {return robot().encoderVelocities();});
-
     logger().addLogEntry("ImpulsiveTorquePredicted_Actual", this, [&,this]()
     {return tau_imp_act;});
 
@@ -420,8 +384,8 @@ void HammeringTaskNew::add_logs()
     logger().addLogEntry("Hammer tip velocity [m/s]", this, [&, this]()
     {return hammer_tip_actual_velocity_vector;});
       
-    // logger().addLogEntry("Hammer tip reference bezier velocity [m/s]", this, [&, this]()
-    // {return hammer_tip_reference_velocity_vector;});
+    logger().addLogEntry("Hammer tip reference bezier velocity [m/s]", this, [&, this]()
+    {return hammer_tip_reference_velocity_vector;});
 
     logger().addLogEntry("Hammer tip position [m]", this, [&, this]()
     {return hammer_tip_actual_position_vector;});
@@ -450,7 +414,8 @@ void HammeringTaskNew::add_logs()
     logger().addLogEntry("floating base observer error position", this, [&, this]()
     {return floating_base_position_observer_error;});
 
-
+    logger().addLogEntry("Robot left hand force sensor", this, [&, this]()
+    {return robot().forceSensor("LeftHandForceSensor").force();});
 
     logger().addLogEntry("Hammer tip observer error position", this, [&, this]()
     {return hammer_tip_position_observer_error;});

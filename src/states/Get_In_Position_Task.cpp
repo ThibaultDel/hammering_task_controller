@@ -25,6 +25,8 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   ctl.gui()->addElement({}, mc_rtc::gui::Button(ctl.stop_hammering_button_name, [this]() { stop = true; }));
 
   // ------------------------- BSplineTrajectoryTask ----------------------------
+  
+  
   // I dont need to specify the endpoint as a posWp because _target takes care of that
   // If I do specify it, then it would add 1 degree to the curve even though the points are the same
   // I also dont need to specify the starting point because the first argument of the task takes care of that
@@ -177,7 +179,7 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   // Eigen::Vector3d normal_nail = ctl.robot(ctl.nail_robot_name).frame(ctl.nail_frame_name).position().rotation().col(2).eval();
   // ctl.impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(ctl.robots(), ctl.robot().robotIndex(), ctl.robot().frame(ctl.hammer_head_frame_name), normal_nail, /*ctl._lambda_high, */ctl._lambda_low, ctl._delta_t, ctl._c_res, ctl._dt_multi, ctl.logger());
   // // impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(    robots(),     robot().robotIndex(),     robot().frame(    hammer_head_frame_name), normal_nail,     _lambda_high,     _lambda_low,     _delta_t,     _c_res,                _dt_multi,        logger());
-  ctl.solver().addConstraintSet(ctl.impulseConstraint);
+  //ctl.solver().addConstraintSet(ctl.impulseConstraint);
 
   // Post Bspline velocity task
   // _target_velocity = ctl.nail_rot.transpose()*_magic_normal_final_velocity;
@@ -203,7 +205,7 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
 
   _new_mbc = ctl.robot().mbc();
 
-  ctl.effective_mass = ctl.compute_effective_mass_with_mbc(_new_mbc, ctl, ctl.nail_normal_vector_world_frame);
+  ctl.effective_mass = /*ctl.*/compute_effective_mass_with_mbc(_new_mbc, ctl, ctl.nail_normal_vector_world_frame);
 
   previous_effective_mass = ctl.effective_mass;
 }
@@ -248,7 +250,7 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
   //                                                 ctl, 
   //                                                 ctl.nail_normal_vector_world_frame);
 
-  ctl.effective_mass = ctl.compute_effective_mass_with_mbc(_new_mbc, ctl, ctl.nail_normal_vector_world_frame);
+  ctl.effective_mass = compute_effective_mass_with_mbc(_new_mbc, ctl, ctl.nail_normal_vector_world_frame);
   ctl.effective_mass_diff = (ctl.effective_mass - previous_effective_mass)/ctl.solver().dt();
   ctl.effective_mass_diff_diff = (ctl.effective_mass_diff - previous_eff_mass_diff)/ctl.solver().dt();
   previous_effective_mass = ctl.effective_mass;
@@ -316,9 +318,12 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
   ctl.eff_mass_diff_checker = _gradient_of_m.transpose()*q_d;
 
   // End state at impact
-  ctl.impact_detected = abs(ctl.nail_force_vector.x()) >= ctl.magic_force_threshold || 
-                        abs(ctl.nail_force_vector.y()) >= ctl.magic_force_threshold || 
-                        abs(ctl.nail_force_vector.z()) >= ctl.magic_force_threshold;
+  //ctl.impact_detected = abs(ctl.nail_force_vector.x()) >= ctl.magic_force_threshold_nail || 
+  //                      abs(ctl.nail_force_vector.y()) >= ctl.magic_force_threshold_nail || 
+  //                      abs(ctl.nail_force_vector.z()) >= ctl.magic_force_threshold_nail;
+
+  
+  ctl.impact_detected = ctl.robot().forceSensor("LeftHandForceSensor").force().norm()>=ctl.magic_force_threshold_sensor;
 
   double impact_detection_position_threshold = 0.02;
   bool impact_trhough_position = _total_time_elapsed > 0.95*_magic_BSpline_max_duration && ctl.hammer_tip_actual_position_vector[2] <= _end_point[2];
@@ -417,9 +422,9 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
     ctl.number_of_hits++;
 
     //I don't know why but apparently TVMImpulsiveConstraint is not recognised as a type
-    //ctl.logger().addLogEntry("ImpulsiveTorqueTrue", this, [&, this]()
+    //ctl.logger().addLogEntry("ImpulsiveTorqueSimulated_Cut", this, [&, this]()
     //{return static_cast<TVMImpulseConstraint *>(ctl.impulseConstraint->getConstraint().get())->impFunctionLow()->ImpulsiveTorqueTrue();});
-    //ctl.logger().removeLogEntry("ImpulsiveTorqueTrue");
+    //ctl.logger().removeLogEntry("ImpulsiveTorqueSimulated_Cut");
 
     // Manually set the floating base pose, velocity and acceleration in the world frame from the bodysensor
     ctl.comparisonRobots_->robot().posW(sva::PTransformd(ctl.floatingBaseSensor_.orientation(), ctl.floatingBaseSensor_.position()));
@@ -535,7 +540,34 @@ const double Get_In_Position_Task::compute_projected_momentum(
 }  // TODO: should this not use the 2-norm?
 
 
+const double Get_In_Position_Task::compute_effective_mass_with_mbc(
+  rbd::MultiBodyConfig mbc, 
+  mc_control::fsm::Controller & ctl_, 
+  const Eigen::Vector3d &normal_vector) const{
 
+  HammeringTaskNew &ctl = static_cast<HammeringTaskNew &>(ctl_);
+    
+  // If you dont put this line the gradient is 0 everywhere because M and J are not updating
+  ctl.robot().forwardKinematics(mbc);                                               
+                                                        
+
+  rbd::MultiBody robot_mb = ctl_.robot().mb();
+  rbd::Jacobian jac(robot_mb, ctl.hammer_head_frame_name);
+  Eigen::MatrixXd world_frame_jacobian = jac.jacobian(robot_mb, mbc);
+
+  Eigen::MatrixXd full_world_frame_jacobian(6, ctl.robot().mb().nrDof());
+  jac.fullJacobian(robot_mb, world_frame_jacobian, full_world_frame_jacobian);
+
+  rbd::ForwardDynamics fd(robot_mb);
+  fd.computeH(robot_mb, mbc);
+  Eigen::MatrixXd M = fd.H();
+
+  const Eigen::MatrixXd linear_jacobian = full_world_frame_jacobian.bottomRows(3);
+
+  const Eigen::Matrix3d LAMBDA = linear_jacobian*M.inverse()*linear_jacobian.transpose();
+
+  return 1/(normal_vector.transpose()*LAMBDA*normal_vector);
+}
 
 // const double Get_In_Position_Task::compute_effective_mass_with_mbc(
 //   rbd::MultiBodyConfig mbc, 
@@ -640,7 +672,7 @@ const Eigen::VectorXd Get_In_Position_Task::compute_emass_gradient_backward_diff
   const double epsilon = 1E-6;
   Eigen::VectorXd grad(ctl.robot().mb().nrDof(), 1);
   grad.setOnes();
-  double m_q = ctl.compute_effective_mass_with_mbc(mbc, ctl_, normal_vector);
+  double m_q = compute_effective_mass_with_mbc(mbc, ctl_, normal_vector);
   double backward_effective_mass = 0;
   
   unsigned int j = 0;
@@ -657,7 +689,7 @@ const Eigen::VectorXd Get_In_Position_Task::compute_emass_gradient_backward_diff
     backward_mbc.q.at(i).at(0) -= epsilon;
 
     //Finite differences
-    backward_effective_mass = ctl.compute_effective_mass_with_mbc(backward_mbc, ctl_, normal_vector);
+    backward_effective_mass = compute_effective_mass_with_mbc(backward_mbc, ctl_, normal_vector);
     grad(j,0) = (m_q - backward_effective_mass)/epsilon;
     j+=1;
       
@@ -681,7 +713,7 @@ const Eigen::VectorXd Get_In_Position_Task::compute_emass_gradient_three_point_b
   Eigen::VectorXd grad(ctl.robot().mb().nrDof(), 1);
   grad.setZero();
   double backward_effective_mass = 0;
-  double m_q = ctl.compute_effective_mass_with_mbc(mbc, ctl_, normal_vector);
+  double m_q = compute_effective_mass_with_mbc(mbc, ctl_, normal_vector);
 
   unsigned int j = 0;
   if (ctl.robot().mb().nrDof() > ctl.robot().tvmRobot().qJoints()->size())
@@ -715,8 +747,8 @@ const Eigen::VectorXd Get_In_Position_Task::compute_emass_gradient_three_point_b
     p1.q.at(i).at(0) -= 2*epsilon;
     p2.q.at(i).at(0) -= epsilon;
 
-    first_term = ctl.compute_effective_mass_with_mbc(p1, ctl_, normal_vector);
-    second_term = ctl.compute_effective_mass_with_mbc(p2, ctl_, normal_vector);
+    first_term = compute_effective_mass_with_mbc(p1, ctl_, normal_vector);
+    second_term = compute_effective_mass_with_mbc(p2, ctl_, normal_vector);
 
     //Finite differences
     backward_effective_mass = first_term - 4*second_term + 3*m_q;
@@ -763,10 +795,10 @@ const Eigen::VectorXd Get_In_Position_Task::compute_emass_gradient_central_diffe
       backward_mbc.q.at(i).at(0) -= dqi;
 
       //Finite differences - Central differences
-      forward_effective_mass = ctl.compute_effective_mass_with_mbc(forward_mbc, 
+      forward_effective_mass = compute_effective_mass_with_mbc(forward_mbc, 
                                                                 ctl, 
                                                                   normal_vector);
-      backward_effective_mass = ctl.compute_effective_mass_with_mbc(backward_mbc, 
+      backward_effective_mass = compute_effective_mass_with_mbc(backward_mbc, 
                                                                   ctl, 
                                                                   normal_vector);
 
@@ -1403,10 +1435,13 @@ void Get_In_Position_Task::add_logs(mc_control::fsm::Controller & ctl_)
 
   ctl.logger().addLogEntry("impact_detected",this,[&,this]()
   {return ctl.impact_detected;});
+
   // ctl.logger().addLogEntry("Hitting_angle", this, [&, this]()
   // {return ctl.last_hitting_angle;});
+
   // ctl.logger().addLogEntry("Hitting_point", this, [&, this]()
   // {return ctl.last_hitting_point;});
+
   // ctl.logger().addLogEntry("Hitting_pointError", this, [&, this]()
   // {return ctl.last_hitting_point_error;});
   //

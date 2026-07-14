@@ -1,0 +1,289 @@
+Managed: false
+StepByStep: true
+IdleKeepState: false
+StatesLibraries:
+- /home/thibault/workspace/install/lib/mc_controller/fsm/states
+- /home/thibault/workspace/install/lib/mc_controller/HammeringTaskNew/states
+StatesFiles:
+- /home/thibault/workspace/install/lib/mc_controller/fsm/states/data
+- /home/thibault/workspace/install/lib/mc_controller/HammeringTaskNew/states/data
+VerboseStateFactory: false
+robots:
+  ground:
+    module: env/ground
+  nail:
+    module: object/nail
+    init_pos:
+      translation:
+      - 0.399995
+      - 0.399989
+      - 0.937959
+      rotation:
+      - 0
+      - 0
+      - 0
+collisions:
+- type: collision
+  useMinimal: true
+global_controller_params:
+  timestep: 0.002
+  gui:
+    stop_hammering_button_name: Stop hammering
+  quality_of_life:
+    bezier_curve_verbose_active: false
+    jacobian_verbose_active: false
+  frames:
+    Hammer_Head_frame: Hammer_head
+    nail: nail
+  magic_values:
+    magic_force_threshold: 1
+    max_number_of_hits: 1
+    c_res: 1
+    delta_t: 0.001
+    lambda_high: 125
+    lambda_low: 25
+    impulsive_tau_limit_multiplier: 5
+    damping:
+    - 0.1
+    - 0.01
+    - 0.5
+    velocity_percentage: 0.9
+  stabilizer:
+    torso:
+      stiffness: 10.0
+      weight: 100.0
+    pelvis:
+      stiffness: 100000.0
+      weight: 100000000.0
+    dcm:
+      p:
+      - 4.0
+      - 4.0
+      i:
+      - 10.0
+      - 10.0
+      d:
+      - 0.5
+      - 0.5
+    com:
+      stiffness:
+      - 1000.0
+      - 1000.0
+      - 1000.0
+      weight: 1000.0
+      height: 0.92
+    contact:
+      weight: 100000.0
+      stiffness:
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      damping:
+      - 300.0
+      - 300.0
+      - 300.0
+      - 300.0
+      - 300.0
+      - 300.0
+      admittance:
+      - 0.008
+      - 0.008
+states:
+  Hammer::Get_In_Position_Task:
+    base: Get_In_Position_Task
+    magic_values:
+      magic_BSpline_task_weight: 0
+      magic_BSpline_max_duration: 2
+      magic_BSpline_task_stiffness: 400
+      magic_BSpline_task_damping: 40
+      magic_BSpline_task_dimweight_tx: 1
+      magic_BSpline_task_dimweight_ty: 1
+      magic_BSpline_task_dimweight_tz: 1
+      magic_BSpline_task_dimweight_rx: 0
+      magic_BSpline_task_dimweight_ry: 0
+      magic_BSpline_task_dimweight_rz: 0
+      magic_posture_task_weight: 1
+      magic_posture_task_stiffness: 1
+      magic_effective_mass_maximization_task_weight: 0
+      magic_posture_task_weight_local: 1
+      magic_vector_orientation_task_weight: 1
+      magic_vector_orientation_task_stiffness: 50
+      gripper_task_min_stiffness: 500
+      gripper_task_max_stiffness: 20000
+      gripper_task_goal_error: 0.0001
+      gripper_task_s: 0.5
+      gripper_task_weight: 10
+      logging_freq: 50
+      fake_nail_pos:
+      - 0.4
+      - 0
+      - 0.9
+    curve_constraints:
+      magic_normal_final_velocity:
+      - 0
+      - 0
+      - -1
+      linear_velocity:
+        x:
+          init: 0
+        y:
+          init: 0
+        z:
+          init: 0
+      linear_acceleration:
+        x:
+          init: 0
+          end: 0
+        y:
+          init: 0
+          end: 0
+        z:
+          init: 0
+          end: 0
+      orientation:
+        enable_BSpline_orientation: false
+  Hammer::Post_Impact_Task:
+    base: Post_Impact_Task
+    magic_values:
+      magic_posture_task_weight: 1
+      magic_posture_task_stiffness: 1
+      magic_posture_task_epsilon: 0.15
+      transform_task_stiffness: 30
+      transform_task_damping: 25
+      transform_task_weight: 200
+      magic_BSpline_task_dimweight_x: 1
+      magic_BSpline_task_dimweight_y: 1
+      magic_BSpline_task_dimweight_z: 1
+    curve_constraints:
+      magic_normal_final_velocity:
+      - 0
+      - 0
+      - -1
+      linear_velocity:
+        x:
+          init: 0
+        y:
+          init: 0
+        z:
+          init: 0
+      linear_acceleration:
+        x:
+          init: 0
+          end: 0
+        y:
+          init: 0
+          end: 0
+        z:
+          init: 0
+          end: 0
+  CoM:
+    base: MetaTasks
+    tasks:
+      CoM:
+        type: com
+        com:
+        - 0.0
+        - 0.0
+        - 0.8
+        weight: 100
+        stiffness: 5
+  Hammer::Standing:
+    base: StabilizerStandingState
+    stiffness: 5
+    StabilizerConfig:
+      type: lipm_stabilizer
+      leftFootSurface: LeftFootCenter
+      rightFootSurface: RightFootCenter
+      enabled: true
+      contacts:
+      - Left
+      - Right
+  Initial_And_Standing_LIPM:
+    base: Parallel
+    states:
+    - Hammer::Standing
+    - HammeringTaskNew_Initial
+  Get_In_Position_And_Standing_LIPM:
+    base: Parallel
+    states:
+    - Hammer::Standing
+    - Hammer::Get_In_Position_Task
+  Post_Impact_And_Standing_LIPM:
+    base: Parallel
+    states:
+    - Hammer::Standing
+    - Hammer::Post_Impact_Task
+  Initial_And_Standing_COM:
+    base: Parallel
+    states:
+    - CoM
+    - HammeringTaskNew_Initial
+  Hammer::HammeringFSM:
+    base: Meta
+    transitions:
+    - - HammeringTaskNew_Initial
+      - BUTTON_CLICKED
+      - Hammer::Get_In_Position_Task
+      - Auto
+    - - Hammer::Get_In_Position_Task
+      - STOP
+      - Hammer::Post_Impact_Task
+      - Auto
+    - - Hammer::Post_Impact_Task
+      - STOP
+      - HammeringTaskNew_Initial
+      - Auto
+transitions:
+- - Hammer::HammeringFSM
+  - OK
+  - Hammer::HammeringFSM
+  - Strict
+init: Hammer::HammeringFSM
+hrp5_p:
+  posture:
+    stiffness: 10
+    weight: 5
+ObserverPipelines:
+  name: ObserverPipeline
+  gui: true
+  observers:
+  - type: Encoder
+    config:
+      velocity: encoderVelocities
+  - type: Attitude
+    update: true
+  - type: KinematicInertial
+    update: true
+    config:
+      anchorFrame:
+        maxAnchorFrameDiscontinuity: 0.05
+  - type: BodySensor
+    update: false
+    config:
+      bodySensor: FloatingBase
+  - type: Tilt
+    required: true
+    update: true
+    config:
+      leggedOdometry:
+        kappa: 10
+        lambdaInf: 0.001
+        correctContacts: true
+        odometryType: Flat
+      filterGains:
+        initAlpha: 100
+        initBeta: 1
+        initGamma: 2
+        finalAlpha: 100
+        finalBeta: 1
+        finalGamma: 2
+      contacts:
+        contactsDetection: Surfaces
+        surfacesForContactDetection:
+        - RightFootCenter
+        - LeftFootCenter
+        schmittTriggerLowerPropThreshold: 0.0
+        schmittTriggerUpperPropThreshold: 0.0

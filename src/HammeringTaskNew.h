@@ -139,7 +139,9 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
     std::string stop_hammering_button_name = "undefined";
 
     // Minimum force to detect an impact on the nail
-    double magic_force_threshold = 1;
+    double magic_force_threshold_nail = 1;
+    double magic_force_threshold_sensor = 1;
+
 
     double stabilizing_eval_norm;
     double stabilizing_speed_norm;
