@@ -28,6 +28,7 @@ struct Post_Impact_Task : mc_control::fsm::State
     Eigen::Vector3d _magic_normal_final_velocity = {0, 0, 0};
     sva::PTransformd _target_transform;
     Eigen::Vector3d _nail_point;
+    double _post_impact_get_away_distance=0.1f;
     double _transform_task_stiffness = 30.0f;
     double _transform_task_damping = 30.0f; //17
     double _transform_task_weight = 2000.0f;
