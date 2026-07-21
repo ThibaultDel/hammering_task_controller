@@ -37,6 +37,8 @@ global_controller_params:
     nail: nail
   magic_values:
     magic_force_threshold: 1
+    magic_force_threshold_nail: 100
+    magic_force_threshold_sensor: 100
     max_number_of_hits: 1
     c_res: 1
     delta_t: 0.001

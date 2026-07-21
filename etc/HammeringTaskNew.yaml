@@ -36,8 +36,8 @@ global_controller_params:
     Hammer_Head_frame: Hammer_head
     nail: nail
   magic_values:
-    magic_force_threshold: 1
-    max_number_of_hits: 1
+    magic_force_threshold_nail: 100
+    magic_force_threshold_sensor: 100
     c_res: 1
     delta_t: 0.001
     lambda_high: 125
