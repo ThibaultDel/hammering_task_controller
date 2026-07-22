@@ -42,7 +42,7 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   _oriWp = {};
   
   // The target is the translation of the nail
-  _nail_point = _magic_fake_nail_pos;
+  _nail_point = _magic_hitting_target;
   _end_point = _nail_point + Eigen::Vector3d(0, 0, 0);
   _posWp = {/*_nail_point*/};
 
@@ -171,9 +171,10 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   _vectorOrientationTask->stiffness(_magic_vector_orientation_task_stiffness);
   _vectorOrientationTask->damping(_magic_vector_orientation_task_damping);
   ctl.solver().addTask(_vectorOrientationTask);
+  mc_rtc::log::info("test00");
 
   mc_rtc::log::info("Mass of the nail = {} kg", ctl.robot(ctl.nail_robot_name).mass());
-  mc_rtc::log::info("solver timestep = {} s", ctl.solver().dt());
+  //mc_rtc::log::info("solver timestep = {} s", ctl.solver().dt());
 
   // // Add impulse constraint
   // Eigen::Vector3d normal_nail = ctl.robot(ctl.nail_robot_name).frame(ctl.nail_frame_name).position().rotation().col(2).eval();
@@ -206,6 +207,7 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   _new_mbc = ctl.robot().mbc();
 
   ctl.effective_mass = /*ctl.*/compute_effective_mass_with_mbc(_new_mbc, ctl, ctl.nail_normal_vector_world_frame);
+  mc_rtc::log::info("test010");
 
   previous_effective_mass = ctl.effective_mass;
 }
@@ -322,31 +324,12 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
   //                      abs(ctl.nail_force_vector.y()) >= ctl.magic_force_threshold_nail || 
   //                      abs(ctl.nail_force_vector.z()) >= ctl.magic_force_threshold_nail;
 
-  
   ctl.impact_detected = ctl.robot().forceSensor("LeftHandForceSensor").force().norm()>=ctl.magic_force_threshold_sensor;
 
   double impact_detection_position_threshold = 0.02;
-  bool impact_trhough_position = _total_time_elapsed > 0.95*_magic_BSpline_max_duration && ctl.hammer_tip_actual_position_vector[2] <= _end_point[2];
-  // bool impact_trhough_position = (ctl.hammer_tip_actual_position_vector[0] >= _end_point[0] - impact_detection_position_threshold || ctl.hammer_tip_actual_position_vector[0] <= _end_point[0] + impact_detection_position_threshold) &&
-  //                                (ctl.hammer_tip_actual_position_vector[1] >= _end_point[1] - impact_detection_position_threshold || ctl.hammer_tip_actual_position_vector[1] <= _end_point[1] + impact_detection_position_threshold) &&
-  //                                ctl.hammer_tip_actual_position_vector[2] <= _end_point[2];
-  
-  // if(iii > _logging_freq && ctl.bspline_active_){
-  //   // auto error = _BSplineVel->eval();
-  //   // auto tracking_error = _BSplineVel->evalTracking();
-  //   // auto target = _BSplineVel->target().translation();;
-  //
-  //   // mc_rtc::log::info("BSpline task error [x, y, z] [{}, {}, {}]", error[0], error[1], error[2]);
-  //   // mc_rtc::log::info("BSpline target [x, y, z] [{}, {}, {}]", target[0], target[1], target[2]);
-  //   mc_rtc::log::info("BSpline task tracking error [x, y, z] [{:.5f}, {:.5f}, {:.5f}]", ctl.bspline_tracking_error[0], ctl.bspline_tracking_error[1], ctl.bspline_tracking_error[2]);
-  //
-  //   iii = 0;
-  // } else if (!ctl.bspline_active_)
-  // {
-  //   mc_rtc::log::info("Position {} with goal {}", ctl.hammer_tip_actual_position_vector.transpose(), _end_point.transpose());
-  //   iii = 0;
-  // }
-  // iii++;
+  bool height_stop_offset=0.01;
+  bool stop_height_flag = ctl.hammer_tip_actual_position_vector[2] < _magic_hitting_target[2];
+  mc_rtc::log::info("height const{}",ctl.hammer_tip_actual_position_vector[2]-_magic_hitting_target[2]);
 
   if (!ctl.bspline_active_)
   {
@@ -397,6 +380,7 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
   }
   //log bspline point
 
+
   if(ctl.flag){
     ctl.flag=0;
     int bspline_number_of_points=1000;
@@ -415,6 +399,29 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
     outputFile.close();
     
     mc_rtc::log::info("b spline text file written");
+  }
+
+  if(_total_time_elapsed > (_magic_BSpline_max_duration/*+1.f*/) && stop_height_flag){
+    ctl.comparisonRobots_->robot().posW(sva::PTransformd(ctl.floatingBaseSensor_.orientation(), ctl.floatingBaseSensor_.position()));
+    ctl.comparisonRobots_->robot().mbc().q = ctl.realRobot().mbc().q;
+
+    Eigen::Vector3d hammer_normal_world_frame = (ctl.robot().frame(ctl.hammer_head_frame_name).position().rotation().transpose()*Eigen::Vector3d(1, 0, 0)).normalized();
+    Eigen::Vector3d hammer_normal_world_frame_bodysensor = (ctl.comparisonRobots_->robot().frame(ctl.hammer_head_frame_name).position().rotation().transpose()*Eigen::Vector3d(1, 0, 0)).normalized();
+
+    mc_rtc::log::info("Lowest hammer pos reached");
+
+    mc_rtc::log::info("actual hammer normal in world frame = {}", hammer_normal_world_frame);
+    mc_rtc::log::info("target hammer normal in world frame = {}", -ctl.nail_normal_vector_world_frame);
+    mc_rtc::log::info("angle error = {} deg", (180/M_PI) * vector_error(hammer_normal_world_frame, -ctl.nail_normal_vector_world_frame));
+
+    ctl.last_hitting_angle = (180/M_PI) * vector_error(hammer_normal_world_frame, -ctl.nail_normal_vector_world_frame);
+    ctl.last_hitting_angle_bodysensor = (180/M_PI) * vector_error(hammer_normal_world_frame_bodysensor, -ctl.nail_normal_vector_world_frame);
+    ctl.last_hitting_point = ctl.robot().frame(ctl.hammer_head_frame_name).position().translation();
+    ctl.last_hitting_point_error_tilt = (ctl.robot().frame(ctl.hammer_head_frame_name).position().translation() - _nail_point).cwiseAbs();
+    ctl.last_hitting_point_error_bodysensor = (ctl.comparisonRobots_->robot().frame(ctl.hammer_head_frame_name).position().translation() - _nail_point).cwiseAbs();
+
+    output("STOP");
+    return true;
   }
 
   if(ctl.impact_detected/*stop*/)
@@ -1384,7 +1391,7 @@ void Get_In_Position_Task::load_params()
   _gripper_task_goal_error = _config(magic_values_key)("gripper_task_goal_error");
   _gripper_task_K_scaling_factor = _config(magic_values_key)("gripper_task_s");
 
-  _magic_fake_nail_pos =  _config(magic_values_key)("fake_nail_pos");
+  _magic_hitting_target =  _config(magic_values_key)("hitting_target");
   // ------------------------ Loading init and start velocities, accelerations and jerks ---------------------------
 
 

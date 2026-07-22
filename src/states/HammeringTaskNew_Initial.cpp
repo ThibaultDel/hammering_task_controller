@@ -151,7 +151,7 @@ bool HammeringTaskNew_Initial::run(mc_control::fsm::Controller & ctl_)
     mc_rtc::log::error_and_throw("This simulation is done to keep them all the same lengths");
   }
 
-  if ((_positionning_hammer_clicked || total_time_elapsed > 3.f) && ctl.stabilizing_eval_norm < 0.1 && ctl.number_of_hits < ctl.max_number_of_hits/* && ctl.pelvis_eval_norm < 0.05 && ctl.torso_eval_norm < 0.015*/)
+  if ((_positionning_hammer_clicked) && ctl.stabilizing_eval_norm < 0.1 && ctl.number_of_hits < ctl.max_number_of_hits/* && ctl.pelvis_eval_norm < 0.05 && ctl.torso_eval_norm < 0.015*/)
   {
       output("BUTTON_CLICKED");
       return true;

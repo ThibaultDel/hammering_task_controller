@@ -15,9 +15,9 @@ robots:
     module: object/nail
     init_pos:
       translation:
-      - 0.399995
-      - 0.399989
-      - 0.937959
+      - 0.4
+      - 0.4
+      - 0.6
       rotation:
       - 0
       - 0
@@ -44,7 +44,7 @@ global_controller_params:
     delta_t: 0.001
     lambda_high: 125
     lambda_low: 25
-    impulsive_tau_limit_multiplier: 1
+    impulsive_tau_limit_multiplier: 1000
     damping:
     - 0.1
     - 0.01
@@ -55,8 +55,8 @@ global_controller_params:
       stiffness: 10.0
       weight: 100.0
     pelvis:
-      stiffness: 100000.0
-      weight: 100000000.0
+      stiffness: 1000.0
+      weight: 1000.0
     dcm:
       p:
       - 4.0
@@ -97,9 +97,9 @@ states:
   Hammer::Get_In_Position_Task:
     base: Get_In_Position_Task
     magic_values:
-      magic_BSpline_task_weight: 100
+      magic_BSpline_task_weight: 500
       magic_BSpline_max_duration: 2
-      magic_BSpline_task_stiffness: 500
+      magic_BSpline_task_stiffness: 800
       magic_BSpline_task_damping: 40
       magic_BSpline_task_dimweight_tx: 1
       magic_BSpline_task_dimweight_ty: 1
@@ -111,7 +111,7 @@ states:
       magic_posture_task_stiffness: 1
       magic_effective_mass_maximization_task_weight: 1
       magic_posture_task_weight_local: 1
-      magic_vector_orientation_task_weight: 100
+      magic_vector_orientation_task_weight: 500
       magic_vector_orientation_task_stiffness: 100
       gripper_task_min_stiffness: 500
       gripper_task_max_stiffness: 20000
@@ -119,7 +119,7 @@ states:
       gripper_task_s: 0.5
       gripper_task_weight: 10
       logging_freq: 50
-      fake_nail_pos:
+      hitting_target:
       - 0.4
       - 0.4
       - 0.9
@@ -150,12 +150,12 @@ states:
   Hammer::Post_Impact_Task:
     base: Post_Impact_Task
     magic_values:
-      magic_posture_task_weight: 1
+      magic_posture_task_weight: 10
       magic_posture_task_stiffness: 1
       magic_posture_task_epsilon: 0.15
       transform_task_stiffness: 30
       transform_task_damping: 25
-      transform_task_weight: 200
+      transform_task_weight: 100
       magic_BSpline_task_dimweight_x: 1
       magic_BSpline_task_dimweight_y: 1
       magic_BSpline_task_dimweight_z: 1

@@ -76,7 +76,7 @@ struct Get_In_Position_Task : mc_control::fsm::State
     Eigen::Vector3d _target_velocity;
     sva::MotionVecd _target_vel;
 
-    Eigen::Vector3d _magic_fake_nail_pos = {0, 0, 0};
+    Eigen::Vector3d _magic_hitting_target = {0, 0, 0};
 
     // Transform task to test tvm
     std::shared_ptr<mc_tasks::TransformTask> gripper_task;
@@ -264,7 +264,7 @@ struct Get_In_Position_Task : mc_control::fsm::State
     double _gripper_task_K_scaling_factor = 1.0f;
 
     double _velocity_task_stiffness = 6.0f;
-    double _velocity_task_weight = 2000.0f;
+    double _velocity_task_weight = 100.0f;
 
     bool _enable_BSpline_orientation = false;
 
