@@ -171,7 +171,6 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   _vectorOrientationTask->stiffness(_magic_vector_orientation_task_stiffness);
   _vectorOrientationTask->damping(_magic_vector_orientation_task_damping);
   ctl.solver().addTask(_vectorOrientationTask);
-  mc_rtc::log::info("test00");
 
   mc_rtc::log::info("Mass of the nail = {} kg", ctl.robot(ctl.nail_robot_name).mass());
   //mc_rtc::log::info("solver timestep = {} s", ctl.solver().dt());
@@ -207,7 +206,6 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   _new_mbc = ctl.robot().mbc();
 
   ctl.effective_mass = /*ctl.*/compute_effective_mass_with_mbc(_new_mbc, ctl, ctl.nail_normal_vector_world_frame);
-  mc_rtc::log::info("test010");
 
   previous_effective_mass = ctl.effective_mass;
 }
@@ -329,7 +327,6 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
   double impact_detection_position_threshold = 0.02;
   bool height_stop_offset=0.01;
   bool stop_height_flag = ctl.hammer_tip_actual_position_vector[2] < _magic_hitting_target[2];
-  mc_rtc::log::info("height const{}",ctl.hammer_tip_actual_position_vector[2]-_magic_hitting_target[2]);
 
   if (!ctl.bspline_active_)
   {

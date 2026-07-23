@@ -99,7 +99,7 @@ states:
     magic_values:
       magic_BSpline_task_weight: 500
       magic_BSpline_max_duration: 2
-      magic_BSpline_task_stiffness: 800
+      magic_BSpline_task_stiffness: 700
       magic_BSpline_task_damping: 40
       magic_BSpline_task_dimweight_tx: 1
       magic_BSpline_task_dimweight_ty: 1
