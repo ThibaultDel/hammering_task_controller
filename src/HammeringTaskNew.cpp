@@ -139,15 +139,12 @@ bool HammeringTaskNew::run()
   hammer_tip_position_observer_error = hammer_tip_actual_position_vector - hammer_tip_actual_position_vector_realrobot;
   floating_base_position_observer_error = comparisonRobots_->robot().posW().translation() - robot().posW().translation();
 
-  Eigen::VectorXd vec_joined(stabilizerTask->comeval().size() + stabilizerTask->contacteval().size());
-  vec_joined << stabilizerTask->comeval(), stabilizerTask->contacteval();
-  stabilizing_eval_norm = vec_joined.norm();
   stabilizing_speed_norm = stabilizerTask->speed().norm();
 
-  com_eval = stabilizerTask->comeval();
-  pelvis_eval = stabilizerTask->pelviseval();
-  torso_eval = stabilizerTask->torsoeval();
-  contacts_eval = stabilizerTask->contacteval();
+  //com_eval = stabilizerTask->comeval();
+  //pelvis_eval = stabilizerTask->pelviseval();
+  //torso_eval = stabilizerTask->torsoeval();
+  //contacts_eval = stabilizerTask->contacteval();
   // contacts_eval = Eigen::VectorXd::Zero(6);
 
   rbd::Jacobian jac(robot().mb(), hammer_head_frame_name);
@@ -224,10 +221,10 @@ bool HammeringTaskNew::run()
   
   qd_previous = qdm;
 
-  com_eval_norm = com_eval.norm();
-  pelvis_eval_norm = pelvis_eval.norm();
-  torso_eval_norm = torso_eval.norm();
-  contacts_eval_norm = contacts_eval.norm();
+  //com_eval_norm = com_eval.norm();
+  //pelvis_eval_norm = pelvis_eval.norm();
+  //torso_eval_norm = torso_eval.norm();
+  //contacts_eval_norm = contacts_eval.norm();
 
   return mc_control::fsm::Controller::run(mc_solver::FeedbackType::OpenLoop); // TODO: set to closedloop
 }
@@ -450,29 +447,29 @@ void HammeringTaskNew::add_logs()
     logger().addLogEntry("Stabilizing_eval_norm", this, [&, this]()
     {return stabilizing_eval_norm;});
 
-    logger().addLogEntry("Stabilizing_com_eval_norm", this, [&, this]()
-    {return com_eval_norm;});
+    //logger().addLogEntry("Stabilizing_com_eval_norm", this, [&, this]()
+    //{return com_eval_norm;});
 
-    logger().addLogEntry("Stabilizing_torso_eval_norm", this, [&, this]()
-    {return torso_eval_norm;});
+    //logger().addLogEntry("Stabilizing_torso_eval_norm", this, [&, this]()
+    //{return torso_eval_norm;});
 
-    logger().addLogEntry("Stabilizing_pelvis_eval_norm", this, [&, this]()
-    {return pelvis_eval_norm;});
+    //logger().addLogEntry("Stabilizing_pelvis_eval_norm", this, [&, this]()
+    //{return pelvis_eval_norm;});
 
-    logger().addLogEntry("Stabilizing_contact_eval_norm", this, [&, this]()
-    {return contacts_eval_norm;});
+    //logger().addLogEntry("Stabilizing_contact_eval_norm", this, [&, this]()
+    //{return contacts_eval_norm;});
 
-    logger().addLogEntry("Stabilizing_com_eval", this, [&, this]()
-    {return com_eval;});
+    //logger().addLogEntry("Stabilizing_com_eval", this, [&, this]()
+    //{return com_eval;});
 
-    logger().addLogEntry("Stabilizing_torso_eval", this, [&, this]()
-    {return torso_eval;});
+    //logger().addLogEntry("Stabilizing_torso_eval", this, [&, this]()
+    //{return torso_eval;});
 
-    logger().addLogEntry("Stabilizing_pelvis_eval", this, [&, this]()
-    {return pelvis_eval;});
+    //logger().addLogEntry("Stabilizing_pelvis_eval", this, [&, this]()
+    //{return pelvis_eval;});
 
-    logger().addLogEntry("Stabilizing_contact_eval", this, [&, this]()
-    {return contacts_eval;});
+    //logger().addLogEntry("Stabilizing_contact_eval", this, [&, this]()
+    //{return contacts_eval;});
 
     logger().addLogEntry("Completed_trajectories", this, [&, this]()
     {return trajectories_executed;});

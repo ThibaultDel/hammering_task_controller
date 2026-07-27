@@ -92,7 +92,7 @@ bool Post_Impact_Task::run(mc_control::fsm::Controller & ctl_)
         _transform_task->targetVel(sva::MotionVecd(Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero()));
     }
     // Find a better condition than that
-    if(/*ctl.getPostureTask(ctl.robot().name())->speed().norm() < 0.03*//*duration > 0.1f*/_transform_task->eval().norm() < 0.02f){
+    if(/*ctl.getPostureTask(ctl.robot().name())->speed().norm() < 0.03*//*duration > 0.1f*/_transform_task->eval().norm() < 0.03f){
         output("STOP");
         return true;
     }

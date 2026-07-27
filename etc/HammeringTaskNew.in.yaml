@@ -40,7 +40,7 @@ global_controller_params:
     magic_force_threshold_nail: 100
     magic_force_threshold_sensor: 100
     max_number_of_hits: 1
-    c_res: 1
+    c_res: 1   
     delta_t: 0.001
     lambda_high: 125
     lambda_low: 25
@@ -98,7 +98,7 @@ states:
     base: Get_In_Position_Task
     magic_values:
       magic_BSpline_task_weight: 500
-      magic_BSpline_max_duration: 2
+      magic_BSpline_max_duration: 7
       magic_BSpline_task_stiffness: 700
       magic_BSpline_task_damping: 40
       magic_BSpline_task_dimweight_tx: 1
@@ -127,7 +127,7 @@ states:
       magic_normal_final_velocity:
       - 0
       - 0
-      - -1
+      - -0.2
       linear_velocity:
         x:
           init: 0
