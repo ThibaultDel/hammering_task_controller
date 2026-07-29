@@ -16,13 +16,6 @@
 #include <mc_trajectory/BSpline.h>
 // #include <mc_solver/CoMIncPlaneConstr.h>
 
-#include <mc_solver/TVMImpulseConstraint.h>
-#include <mc_solver/TVMKinematicsConstraint.h>
-#include <mc_solver/ImpulseConstraint.h>
-
-
-
-
 #include <memory>
 #include <ndcurves/curve_constraint.h>
 #include <string>
