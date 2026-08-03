@@ -14,7 +14,6 @@ HammeringTaskNew::HammeringTaskNew(mc_rbdyn::RobotModulePtr rm, double dt, const
   load_parameters();
 
   add_logs();
-
   nh = mc_rtc::ROSBridge::get_node_handle();
   // Not the cleanest but at leat mc_mujoco does not crash
   if(nh != nullptr)
@@ -24,6 +23,7 @@ HammeringTaskNew::HammeringTaskNew(mc_rbdyn::RobotModulePtr rm, double dt, const
                   1000,
                   std::bind(&HammeringTaskNew::nail_force_sensor_callback, this, std::placeholders::_1));
   }
+  // Not the cleanest but at leat mc_mujoco does not crash
   nail_rot = robot(nail_robot_name).frame(nail_frame_name).position().rotation();
 
   // Nail normal vector (n) expressed in world frame 
@@ -141,32 +141,29 @@ bool HammeringTaskNew::run()
 
   stabilizing_speed_norm = stabilizerTask->speed().norm();
 
-  //com_eval = stabilizerTask->comeval();
-  //pelvis_eval = stabilizerTask->pelviseval();
-  //torso_eval = stabilizerTask->torsoeval();
-  //contacts_eval = stabilizerTask->contacteval();
-  // contacts_eval = Eigen::VectorXd::Zero(6);
-
+  //Impulsive torque left arm force method
   rbd::Jacobian jac(robot().mb(), hammer_head_frame_name);
   Eigen::MatrixXd world_frame_jacobian = jac.jacobian(robot().mb(), robot().mbc());
 
-  //Impulsive torque nail force method
   Eigen::MatrixXd full_world_frame_jacobian(6, robot().mb().nrDof());
   Eigen::MatrixXd & J_ = full_world_frame_jacobian;
   jac.fullJacobian(robot().mb(), world_frame_jacobian, J_);
 
-  Eigen::MatrixXd P_n_sub = (nail_normal_vector_world_frame * nail_normal_vector_world_frame.transpose()).normalized();
+  //Impulsive torque nail force method
+  rbd::Jacobian jac_sensor(robot().mb(), "Larm_Link6"); //eft hand sensor associated joint
+  Eigen::MatrixXd world_frame_jacobian_Larm_sensor = jac_sensor.jacobian(robot().mb(), robot().mbc());
+
+  Eigen::MatrixXd J_Larm_sensor_(6, robot().mb().nrDof());
+  jac_sensor.fullJacobian(robot().mb(), world_frame_jacobian_Larm_sensor, J_Larm_sensor_);
+
+  Eigen::Matrix3d P_n_sub = (nail_normal_vector_world_frame * nail_normal_vector_world_frame.transpose()).normalized();
   //Eigen::MatrixXd linear_jacobian = full_world_frame_jacobian.bottomRows(3);
   Eigen::MatrixXd linear_jacobian = J_.bottomRows(3);
-
-  Impulsive_torque_f=linear_jacobian.transpose()*nail_force_vector;
-  Impulsive_torque_projected_f=linear_jacobian.transpose()*P_n_sub*nail_force_vector;
 
   //Impulsive torque speed difference method
 
   P_n = Eigen::Matrix<double, 6, 6>::Zero();
   P_n.block<3,3>(3,3) = P_n_sub;
-
   qd=robot().encoderVelocities();
 
   qdm = Eigen::VectorXd::Zero(robot().mb().nrDof());
@@ -216,16 +213,13 @@ bool HammeringTaskNew::run()
 
   effective_mass=compute_effective_mass_with_mbc(robot().mbc(),*this,nail_normal_vector_world_frame);
   Eigen::MatrixXd effective_mass_matrix=(J_*robot().tvmRobot().H().inverse()*J_.transpose()).inverse();
-  tau_imp_true_speed=(J_.transpose()*effective_mass_matrix*P_n*J_)*(qd_previous-qdm)/_delta_t;
-  tau_imp_act = (-1.f*(_c_res+1)/_delta_t)*J_.transpose()*effective_mass_matrix*P_n*J_*qdm;// use just for logging
+  tau_imp_true_speed=(J_.transpose()*effective_mass*P_n*J_)*(qd_previous-qdm)/_delta_t;
+
+  Eigen::Matrix3d R = Eigen::AngleAxisd(-M_PI/4.0, Eigen::Vector3d::UnitX()).toRotationMatrix();
+  tau_imp_true_force=J_Larm_sensor_.transpose()*P_n_sub*(R*robot().forceSensor("LeftHandForceSensor").force());
+  tau_imp_act = (-1.f*(_c_res+1)/_delta_t)*J_.transpose()*effective_mass*P_n*J_*qdm;// use just for logging
   
   qd_previous = qdm;
-
-  //com_eval_norm = com_eval.norm();
-  //pelvis_eval_norm = pelvis_eval.norm();
-  //torso_eval_norm = torso_eval.norm();
-  //contacts_eval_norm = contacts_eval.norm();
-
   return mc_control::fsm::Controller::run(mc_solver::FeedbackType::OpenLoop); // TODO: set to closedloop
 }
 
@@ -267,12 +261,6 @@ double HammeringTaskNew::compute_effective_mass_with_mbc(
 
 
 
-void HammeringTaskNew::nail_force_sensor_callback(const std::shared_ptr<const geometry_msgs::msg::Vector3Stamped> &force)
-{
-  nail_force_vector.x() = force->vector.x;
-  nail_force_vector.y() = force->vector.y;
-  nail_force_vector.z() = force->vector.z;
-}
 
 void HammeringTaskNew::load_parameters()
 {
@@ -357,14 +345,11 @@ void HammeringTaskNew::add_logs()
     logger().addLogEntry("ImpulsiveTorquePredicted_Actual", this, [&,this]()
     {return tau_imp_act;});
 
-    logger().addLogEntry("ImpulsiveTorquesimulated_nailforce_fullVector", this, [&,this]()
-    {return Impulsive_torque_f;});
-
-    logger().addLogEntry("ImpulsiveTorquesimulated_nailforce_projected", this, [&,this]()
-    {return Impulsive_torque_projected_f;});
-
     logger().addLogEntry("ImpulsiveTorquesimulated_speed",this,[&,this]
     {return tau_imp_true_speed;});
+
+    logger().addLogEntry("ImpulsiveTorquesimulated_force",this,[&,this]
+    {return tau_imp_true_force;});
 
     logger().addLogEntry("Effective mass [kg]", this, [&, this]()
     {return effective_mass;});
@@ -428,12 +413,6 @@ void HammeringTaskNew::add_logs()
 
     // logger().addLogEntry("Vector orientation error", this, [&, this]()
     // {return vector_orientation_error;});
-
-    logger().addLogEntry("Nail force sensor", this, [&, this]()
-    {return nail_force_vector;});
-
-    logger().addLogEntry("Nail force sensor norm", this, [&, this]()
-    {return nail_force_vector.norm();});
 
     // logger().addLogEntry("Normal force applied to the nail", this, [&, this]()
     // {return vector_orientation_error;});

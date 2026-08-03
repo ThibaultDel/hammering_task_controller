@@ -46,9 +46,9 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
     Eigen::Matrix3d nail_rot;
     const Eigen::Vector3d normal_vector_nail_frame = {0, 0, 1};
     Eigen::Vector3d nail_normal_vector_world_frame = {0, 0, 0};
-    Eigen::Vector3d nail_force_vector = {0, 0, 0};
-    Eigen::Vector3d nail_force_vector_old = {0, 0, 0};
-    Eigen::Matrix<double, 6, 6> P_n; //projector nail n*n^T
+    //Eigen::Vector3d nail_force_vector = {0, 0, 0};
+    //Eigen::Vector3d nail_force_vector_old = {0, 0, 0};
+    Eigen::Matrix6d P_n; //projector nail n*n^T
     // Logs
     double effective_mass = 0.0f;
     double effective_mass_diff = 0.0f;
@@ -76,7 +76,8 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
     std::vector<double> qd;
     Eigen::VectorXd qdm;
     Eigen::VectorXd qd_previous;
-    Eigen::VectorXd tau_imp_true_speed; 
+    Eigen::VectorXd tau_imp_true_speed;
+    Eigen::VectorXd tau_imp_true_force;
     Eigen::VectorXd tau_imp_act;
     Eigen::VectorXd end_effector_velocity;
 

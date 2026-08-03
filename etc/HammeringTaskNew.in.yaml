@@ -2,11 +2,11 @@ Managed: false
 StepByStep: true
 IdleKeepState: false
 StatesLibraries:
-- /home/thibault/workspace/install/lib/mc_controller/fsm/states
-- /home/thibault/workspace/install/lib/mc_controller/HammeringTaskNew/states
+- "@MC_STATES_DEFAULT_RUNTIME_INSTALL_PREFIX@"
+- "@MC_STATES_RUNTIME_INSTALL_PREFIX@"
 StatesFiles:
-- /home/thibault/workspace/install/lib/mc_controller/fsm/states/data
-- /home/thibault/workspace/install/lib/mc_controller/HammeringTaskNew/states/data
+- "@MC_STATES_DEFAULT_RUNTIME_INSTALL_PREFIX@/data"
+- "@MC_STATES_RUNTIME_INSTALL_PREFIX@/data"
 VerboseStateFactory: false
 robots:
   ground:
@@ -17,7 +17,7 @@ robots:
       translation:
       - 0.4
       - 0.4
-      - 0.6
+      - 0.9
       rotation:
       - 0
       - 0
@@ -44,7 +44,7 @@ global_controller_params:
     delta_t: 0.001
     lambda_high: 125
     lambda_low: 25
-    impulsive_tau_limit_multiplier: 1000
+    impulsive_tau_limit_multiplier: 1
     damping:
     - 0.1
     - 0.01
@@ -98,7 +98,7 @@ states:
     base: Get_In_Position_Task
     magic_values:
       magic_BSpline_task_weight: 500
-      magic_BSpline_max_duration: 7
+      magic_BSpline_max_duration: 2
       magic_BSpline_task_stiffness: 700
       magic_BSpline_task_damping: 40
       magic_BSpline_task_dimweight_tx: 1
@@ -127,7 +127,7 @@ states:
       magic_normal_final_velocity:
       - 0
       - 0
-      - -0.2
+      - -1
       linear_velocity:
         x:
           init: 0

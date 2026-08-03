@@ -333,50 +333,7 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
     mc_rtc::log::info("Position {} with goal {}", ctl.hammer_tip_actual_position_vector.transpose(), _end_point.transpose());
   }
 
-
-  if (_total_time_elapsed > (_magic_BSpline_max_duration/*+1.f*/) && ctl.bspline_active_)
-  {
-    mc_rtc::log::info("BSpline duration exceeded");
-    ctl.solver().removeTask(_BSplineVel);
-    // ctl.solver().removeTask(gripper_task);
-    _target_velocity = ctl.nail_rot.transpose()*_magic_normal_final_velocity;
-    _target_vel = sva::MotionVecd(Eigen::Vector3d::Zero(), _target_velocity);
-    _transform_task = std::make_shared<mc_tasks::TransformTask>(ctl.robot().frame(ctl.hammer_head_frame_name), _velocity_task_stiffness, _velocity_task_weight);
-    _transform_task->reset();
-    _transform_task->targetVel(_target_vel);
-    _target_transform = sva::PTransformd(sva::RotX(M_PI)) * sva::PTransformd(sva::RotY(M_PI/2)) * sva::PTransformd(ctl.robots().robot(ctl.nail_robot_name).frame(ctl.nail_frame_name).position().rotation()) *sva::PTransformd(_nail_point);//* sva::PTransformd(Eigen::Vector3d(0.5, 0.2, 1));
-
-    _transform_task->target(_target_transform);
-    _transform_task->setGains(0, _velocity_task_stiffness);
-
-    Eigen::Vector6d dimweights_transform_task = _transform_task->dimWeight();
-    // Remove the orientation part of the BSpline by setting the orientation weights to 0
-    // if(!_enable_BSpline_orientation)
-    // {
-    //   dimweights_transform_task(0) = 0;
-    //   dimweights_transform_task(1) = 0;
-    //   dimweights_transform_task(2) = 0;
-    // }
-    // Increase the weights on the x and y coordinates
-    dimweights_transform_task(0) = _magic_BSpline_task_dimweight_rx;
-    dimweights_transform_task(1) = _magic_BSpline_task_dimweight_ry;
-    dimweights_transform_task(2) = _magic_BSpline_task_dimweight_rz;
-    dimweights_transform_task(3) = _magic_BSpline_task_dimweight_tx;
-    dimweights_transform_task(4) = _magic_BSpline_task_dimweight_ty;
-    dimweights_transform_task(5) = _magic_BSpline_task_dimweight_tz;
-    _transform_task->dimWeight(dimweights_transform_task);
-    ctl.solver().addTask(_transform_task);
-    mc_rtc::log::info("setting target velocity {}", _target_velocity.transpose());
-    mc_rtc::log::info("setting target velocity {}", _target_vel);
-    ctl.bspline_active_ = false;
-    mc_rtc::log::info("Active tasks:");
-    for (const auto & task : ctl.solver().tasks())
-    {
-      mc_rtc::log::info(" - {}", task->name());
-    }
-  }
   //log bspline point
-
 
   if(ctl.flag){
     ctl.flag=0;
@@ -452,16 +409,6 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
     ctl.last_hitting_point_error_tilt = (ctl.robot().frame(ctl.hammer_head_frame_name).position().translation() - _nail_point).cwiseAbs();
     ctl.last_hitting_point_error_bodysensor = (ctl.comparisonRobots_->robot().frame(ctl.hammer_head_frame_name).position().translation() - _nail_point).cwiseAbs();
     ctl.last_projected_momentum_of_hammer_tip = ctl.projected_momentum_of_hammer_tip;
-    // ctl.logger().addLogEntry("Hitting_angle", this, [&, this]()
-    // {return ctl.last_hitting_angle;});
-    // ctl.logger().addLogEntry("Hitting_point", this, [&, this]()
-    // {return ctl.last_hitting_point;});
-    // ctl.logger().addLogEntry("Hitting_pointError", this, [&, this]()
-    // {return ctl.last_hitting_point_error;});
-
-    // ctl.logger().removeLogEntry("Hitting_angle");
-    // ctl.logger().removeLogEntry("Hitting_point");
-    // ctl.logger().removeLogEntry("Hitting_pointError");
 
     ctl.hitting_data_to_log = true;
     ctl.hittingforce_data_to_log = true;

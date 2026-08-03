@@ -2,11 +2,12 @@ Managed: false
 StepByStep: true
 IdleKeepState: false
 StatesLibraries:
-- /home/thibault/workspace/install/lib/mc_controller/fsm/states
-- /home/thibault/workspace/install/lib/mc_controller/HammeringTaskNew/states
+- "@MC_STATES_DEFAULT_RUNTIME_INSTALL_PREFIX@"
+- "@MC_STATES_RUNTIME_INSTALL_PREFIX@"
 StatesFiles:
-- /home/thibault/workspace/install/lib/mc_controller/fsm/states/data
-- /home/thibault/workspace/install/lib/mc_controller/HammeringTaskNew/states/data
+- "@MC_STATES_DEFAULT_RUNTIME_INSTALL_PREFIX@/data"
+- "@MC_STATES_RUNTIME_INSTALL_PREFIX@/data"
+
 VerboseStateFactory: false
 robots:
   ground:
@@ -17,7 +18,7 @@ robots:
       translation:
       - 0.4
       - 0.4
-      - 0.6
+      - 0.9
       rotation:
       - 0
       - 0
@@ -44,7 +45,7 @@ global_controller_params:
     delta_t: 0.001
     lambda_high: 125
     lambda_low: 25
-    impulsive_tau_limit_multiplier: 1000
+    impulsive_tau_limit_multiplier: 1
     damping:
     - 0.1
     - 0.01
