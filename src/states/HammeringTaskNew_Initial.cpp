@@ -124,11 +124,6 @@ bool HammeringTaskNew_Initial::run(mc_control::fsm::Controller & ctl_)
     ctl.hitting_data_to_log = false;
   }
 
-  if (ctl.nail_force_vector.norm() > 0.1)
-  {
-    ctl.force_felt = true;
-  }
-
   if (total_time_elapsed >= 0.2f)
   {
     if (ctl.hittingforce_logging_entry_to_remove)

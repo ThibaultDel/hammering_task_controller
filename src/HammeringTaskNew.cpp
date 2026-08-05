@@ -1,5 +1,6 @@
 #include "HammeringTaskNew.h"
 #include <RBDyn/MultiBodyConfig.h>
+// #include <mc_solver/TVMImpulseConstraint.h>
 // #include <mc_solver/DynamicsConstraint.h>
 
 
@@ -149,6 +150,11 @@ bool HammeringTaskNew::run()
   Eigen::MatrixXd & J_ = full_world_frame_jacobian;
   jac.fullJacobian(robot().mb(), world_frame_jacobian, J_);
 
+  // const auto & world_frame_jacobian_dot = jac.jacobianDot(robot().mb(), robot().mbc());
+  // Eigen::MatrixXd full_world_frame_jacobian_dot(6, robot().mb().nrDof());
+  // jac.fullJacobian(robot().mb() , world_frame_jacobian_dot, full_world_frame_jacobian_dot);
+  // Eigen::MatrixXd & J_d = full_world_frame_jacobian_dot;
+
   //Impulsive torque nail force method
   rbd::Jacobian jac_sensor(robot().mb(), "Larm_Link6"); //eft hand sensor associated joint
   Eigen::MatrixXd world_frame_jacobian_Larm_sensor = jac_sensor.jacobian(robot().mb(), robot().mbc());
@@ -212,13 +218,21 @@ bool HammeringTaskNew::run()
 
 
   effective_mass=compute_effective_mass_with_mbc(robot().mbc(),*this,nail_normal_vector_world_frame);
+  //effective_mass_diff=compute_effective_mass_d_with_mbc(robot().mbc(),*this,nail_normal_vector_world_frame,effective_mass);
   Eigen::MatrixXd effective_mass_matrix=(J_*robot().tvmRobot().H().inverse()*J_.transpose()).inverse();
   tau_imp_true_speed=(J_.transpose()*effective_mass*P_n*J_)*(qd_previous-qdm)/_delta_t;
 
   Eigen::Matrix3d R = Eigen::AngleAxisd(-M_PI/4.0, Eigen::Vector3d::UnitX()).toRotationMatrix();
   tau_imp_true_force=J_Larm_sensor_.transpose()*P_n_sub*(R*robot().forceSensor("LeftHandForceSensor").force());
   tau_imp_act = (-1.f*(_c_res+1)/_delta_t)*J_.transpose()*effective_mass*P_n*J_*qdm;// use just for logging
-  
+  // tau_imp_derivate = -(_c_res+1)/_delta_t*((J_d.transpose()*effective_mass*P_n*J_
+  // +J_.transpose()*effective_mass_diff*P_n*J_
+  // +J_.transpose()*effective_mass*P_n*J_d)*qdm
+  // +(J_.transpose()*effective_mass*P_n*J_)*(qdm-qd_previous)/_delta_t);
+
+  //tau_imp_derivate_low_limit=(static_cast<mc_solver::TVMImpulseConstraint *>(impulseConstraint->getConstraint().get())->LowerLimit()-tau_imp_act)/_delta_t;
+  //tau_imp_derivate_high_limit=(static_cast<mc_solver::TVMImpulseConstraint *>(impulseConstraint->getConstraint().get())->UpperLimit()-tau_imp_act)/_delta_t;
+
   qd_previous = qdm;
   return mc_control::fsm::Controller::run(mc_solver::FeedbackType::OpenLoop); // TODO: set to closedloop
 }
@@ -258,7 +272,40 @@ double HammeringTaskNew::compute_effective_mass_with_mbc(
   return 1/(normal_vector.transpose()*LAMBDA*normal_vector);
   }
 
+// double HammeringTaskNew::compute_effective_mass_d_with_mbc(
+//   rbd::MultiBodyConfig mbc, 
+//   mc_control::fsm::Controller & ctl_, 
+//   const Eigen::Vector3d &normal_vector,double effective_mass){
 
+//   HammeringTaskNew &ctl = static_cast<HammeringTaskNew &>(ctl_);
+
+//   // If you dont put this line the gradient is 0 everywhere because M and J are not updating
+//   rbd::MultiBody robot_mb = ctl_.robot().mb();
+//   rbd::Jacobian jac(robot_mb, ctl.hammer_head_frame_name);
+//   Eigen::MatrixXd world_frame_jacobian = jac.jacobian(robot_mb, mbc);
+
+//   Eigen::MatrixXd full_world_frame_jacobian(6, ctl.robot().mb().nrDof());
+//   jac.fullJacobian(robot_mb, world_frame_jacobian, full_world_frame_jacobian);
+
+//   const auto & world_frame_jacobian_dot = jac.jacobianDot(robot_mb, mbc);
+//   Eigen::MatrixXd full_world_frame_jacobian_dot(6, robot().mb().nrDof());
+//   jac.fullJacobian(robot_mb, world_frame_jacobian_dot, full_world_frame_jacobian_dot);
+
+//   Eigen::MatrixXd linear_jacobian = full_world_frame_jacobian.bottomRows(3);
+//   Eigen::MatrixXd linear_jacobiand = full_world_frame_jacobian_dot.bottomRows(3);
+
+//   rbd::ForwardDynamics fd(robot_mb);
+//   fd.computeH(robot_mb, mbc);
+//   Eigen::MatrixXd M = fd.H();
+//   Eigen::MatrixXd Mi = fd.H().inverse();
+//   Eigen::MatrixXd M_d_ = fd.C()+fd.C().transpose();
+
+//   Eigen::Matrix3d LAMBDA = linear_jacobian*M.inverse()*linear_jacobian.transpose();
+//   end_effector_velocity=linear_jacobian*qdm;
+//   return -1. * (normal_vector.transpose() * (linear_jacobiand * Mi * linear_jacobian.transpose() -
+//   linear_jacobian * Mi * M_d_ * Mi * linear_jacobian.transpose() +
+//   linear_jacobian * Mi * linear_jacobiand.transpose()) * normal_vector)(0,0) * effective_mass * effective_mass;
+//   }
 
 
 
@@ -344,6 +391,15 @@ void HammeringTaskNew::add_logs()
 
     logger().addLogEntry("ImpulsiveTorquePredicted_Actual", this, [&,this]()
     {return tau_imp_act;});
+
+    logger().addLogEntry("ImpulsiveTorquePredicted_derivative", this, [&,this]()
+    {return tau_imp_derivate;});
+
+    //logger().addLogEntry("ImpulsiveTorquePredicted_low_limit_derivative", this, [&,this]()
+    //{return tau_imp_derivate_low_limit;});
+
+    //logger().addLogEntry("ImpulsiveTorquePredicted_high_limit_derivative", this, [&,this]()
+    //{return tau_imp_derivate_high_limit;});
 
     logger().addLogEntry("ImpulsiveTorquesimulated_speed",this,[&,this]
     {return tau_imp_true_speed;});

@@ -79,6 +79,9 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
     Eigen::VectorXd tau_imp_true_speed;
     Eigen::VectorXd tau_imp_true_force;
     Eigen::VectorXd tau_imp_act;
+    Eigen::VectorXd tau_imp_derivate;
+    Eigen::VectorXd tau_imp_derivate_low_limit;
+    Eigen::VectorXd tau_imp_derivate_high_limit;
     Eigen::VectorXd end_effector_velocity;
 
     std::vector<std::vector<double>> base_posture_vector;
@@ -190,6 +193,11 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
     double compute_effective_mass_with_mbc(rbd::MultiBodyConfig mbc, 
                                                 mc_control::fsm::Controller & ctl_, 
                                                 const Eigen::Vector3d &normal_vector);
+
+    //double compute_effective_mass_d_with_mbc(rbd::MultiBodyConfig mbc, 
+    //                                            mc_control::fsm::Controller & ctl_, 
+    //                                            const Eigen::Vector3d &normal_vector,
+    //                                            double effective_mass);
 
   private:
 
