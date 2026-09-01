@@ -51,9 +51,8 @@ HammeringTaskNew::HammeringTaskNew(mc_rbdyn::RobotModulePtr rm, double dt, const
   solver().addConstraintSet(dynamicsConstraint);
 
   // Add impulse constraint
-  Eigen::Vector3d normal_nail = robot(nail_robot_name).frame(nail_frame_name).position().rotation().col(2).eval();
-  mc_rtc::log::info("the normal nail norm {}", normal_nail.norm());
-  impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(robots(), robot().robotIndex(), robot().frame(hammer_head_frame_name), normal_nail, _lambda_high, _lambda_low, _delta_t, _c_res, _dt_multi, logger());
+  mc_rtc::log::info("normal nail world frame {}", nail_normal_vector_world_frame);
+  //impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(robots(), robot().robotIndex(), robot().frame(hammer_head_frame_name), nail_normal_vector_world_frame, _lambda_high, _lambda_low, _delta_t, _c_res, _dt_multi, logger());
   //solver().addConstraintSet(impulseConstraint);
 
   // Load default configuration from robot module
@@ -237,11 +236,11 @@ bool HammeringTaskNew::run()
   +(J_.transpose()*effective_mass*P_n*J_)*(qdm-qd_previous)/_delta_t);
   tau_imp_derivate_num = (tau_imp_act-tau_imp_previous)/_delta_t;
   tau_imp_previous = tau_imp_act;
-  mc_solver::TVMImpulseConstraint* High_constraint = static_cast<mc_solver::TVMImpulseConstraint *>(impulseConstraint->getConstraint().get());
-  mc_solver::TVMImpulseConstraint* Low_constraint = static_cast<mc_solver::TVMImpulseConstraint *>(impulseConstraint->getConstraint().get());
+  //mc_solver::TVMImpulseConstraint* High_constraint = static_cast<mc_solver::TVMImpulseConstraint *>(impulseConstraint->getConstraint().get());
+  //mc_solver::TVMImpulseConstraint* Low_constraint = static_cast<mc_solver::TVMImpulseConstraint *>(impulseConstraint->getConstraint().get());
 
-  tau_imp_derivate_low_limit=(High_constraint->LowerLimit()-tau_imp_act)*High_constraint->impFunctionHigh()->EffectiveLambda();
-  tau_imp_derivate_high_limit=(Low_constraint->UpperLimit()-tau_imp_act)*Low_constraint->impFunctionLow()->EffectiveLambda();
+  tau_imp_derivate_low_limit=(robot().tvmRobot().limits().tl-tau_imp_act);
+  tau_imp_derivate_high_limit=(robot().tvmRobot().limits().tu-tau_imp_act);
 
   qd_previous = qdm;
   return mc_control::fsm::Controller::run(mc_solver::FeedbackType::OpenLoop); // TODO: set to closedloop
@@ -264,21 +263,29 @@ void HammeringTaskNew::addToGUI()
       mc_rtc::gui::ArrayInput("Orientation (weight stiffness damping)"
       ,[this]() { return Eigen::Vector3d{this->_magic_vector_orientation_task_weight,this->_magic_vector_orientation_task_stiffness,this->_magic_vector_orientation_task_damping};}
       ,[this](const Eigen::Vector3d & orientation_param) {_magic_vector_orientation_task_weight=orientation_param(0);
-                                                          _magic_vector_orientation_task_stiffness=orientation_param(1);
-                                                          _magic_vector_orientation_task_damping=orientation_param(2);}),
+                                                        _magic_vector_orientation_task_stiffness=orientation_param(1);
+                                                        _magic_vector_orientation_task_damping=orientation_param(2);}),
       mc_rtc::gui::ArrayInput("Bspline task (weight stiffness damping)"
       ,[this]() { return Eigen::Vector3d{this->_magic_BSpline_task_weight,this->_magic_BSpline_task_stiffness,this->_magic_BSpline_task_damping};}
       ,[this](const Eigen::Vector3d & Bspline_param) {_magic_BSpline_task_weight=Bspline_param(0);
-                                                          _magic_BSpline_task_stiffness=Bspline_param(1);
-                                                          _magic_BSpline_task_damping=Bspline_param(2);}),
+                                                        _magic_BSpline_task_stiffness=Bspline_param(1);
+                                                        _magic_BSpline_task_damping=Bspline_param(2);}),
       mc_rtc::gui::ArrayInput("Bspline params (duration final_velocity)"
       ,[this]() { return Eigen::Matrix<double, 2, 1>{this->_magic_BSpline_max_duration,this->_magic_normal_final_velocity};}
       ,[this](const Eigen::Matrix<double, 2, 1> & Bspline_param) {_magic_BSpline_max_duration=Bspline_param(0);
-                                                          _magic_normal_final_velocity=Bspline_param(1);
-                                                          _magic_final_velocity=_magic_final_velocity*_magic_normal_final_velocity;}),
+                                                        _magic_normal_final_velocity=Bspline_param(1);
+                                                        _magic_final_velocity=_magic_final_velocity*_magic_normal_final_velocity;}),
       mc_rtc::gui::ArrayInput("Bspline init velocity (Vx Vy Vz)"
       ,[this]() { return this->_magic_init_vel;}
-      ,[this](const Eigen::Vector3d & Bspline_init_velocity) {this->_magic_init_vel = Bspline_init_velocity;}));                                                       
+      ,[this](const Eigen::Vector3d & Bspline_init_velocity) {this->_magic_init_vel = Bspline_init_velocity;}),
+      mc_rtc::gui::ArrayInput("Impulse Constraint(Cres dt multiplier velocityP lambdaH lambaL)"
+      ,[this]() { return Eigen::Vector6d{this->_c_res,this->_delta_t,this->_dt_multi,this->_vp,this->_lambda_high,this->_lambda_low};}
+      ,[this](const Eigen::Vector6d & Impusle_constraint_param) {_c_res=Impusle_constraint_param(0);
+                                                        _delta_t=Impusle_constraint_param(1);
+                                                        _dt_multi=Impusle_constraint_param(2);
+                                                        _vp=Impusle_constraint_param(3);
+                                                        _lambda_high=Impusle_constraint_param(4);
+                                                        _lambda_low=Impusle_constraint_param(5);}));
 }
 
 double HammeringTaskNew::compute_effective_mass_with_mbc(

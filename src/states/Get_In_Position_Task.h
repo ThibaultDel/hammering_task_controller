@@ -77,6 +77,7 @@ struct Get_In_Position_Task : mc_control::fsm::State
     std::shared_ptr<mc_tasks::TransformTask> _transform_task;
 
     Eigen::VectorXd dimweights_posture;// = Eigen::VectorXd::Ones();
+    Eigen::Vector6d dimweights_transform_task = {0,0,0,0,0,0};
 
     bool stop = false;
     
@@ -452,7 +453,7 @@ struct Get_In_Position_Task : mc_control::fsm::State
     bool first_iteration = true;
     double first_instance_error;
 
-    // std::unique_ptr<mc_solver::ImpulseConstraint> impulseConstraint;
+    std::unique_ptr<mc_solver::ImpulseConstraint> impulseConstraint;
 
 
 };

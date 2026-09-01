@@ -176,14 +176,17 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   _vectorOrientationTask->stiffness(ctl._magic_vector_orientation_task_stiffness);
   _vectorOrientationTask->damping(ctl._magic_vector_orientation_task_damping);
   ctl.solver().addTask(_vectorOrientationTask);
-
+  
+  //ctl.impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(ctl.robots(), ctl.robot().robotIndex(), ctl.robot().frame(ctl.hammer_head_frame_name), ctl.nail_normal_vector_world_frame, ctl._lambda_high, ctl._lambda_low, ctl._delta_t, ctl._c_res, ctl._dt_multi, ctl.logger());
+  //ctl.solver().addConstraintSet(ctl.impulseConstraint);
   mc_rtc::log::info("Mass of the nail = {} kg", ctl.robot(ctl.nail_robot_name).mass());
   //mc_rtc::log::info("solver timestep = {} s", ctl.solver().dt());
 
   // // Add impulse constraint
-  // Eigen::Vector3d normal_nail = ctl.robot(ctl.nail_robot_name).frame(ctl.nail_frame_name).position().rotation().col(2).eval();
+  // Eigen::Vector3d c = ctl.robot(ctl.nail_robot_name).frame(ctl.nail_frame_name).position().rotation().col(2).eval();
   // ctl.impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(ctl.robots(), ctl.robot().robotIndex(), ctl.robot().frame(ctl.hammer_head_frame_name), normal_nail, /*ctl._lambda_high, */ctl._lambda_low, ctl._delta_t, ctl._c_res, ctl._dt_multi, ctl.logger());
-  // // impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(    robots(),     robot().robotIndex(),     robot().frame(    hammer_head_frame_name), normal_nail,     _lambda_high,     _lambda_low,     _delta_t,     _c_res,                _dt_multi,        logger());
+  impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(ctl.robots(), ctl.robot().robotIndex(), ctl.robot().frame(ctl.hammer_head_frame_name), ctl.nail_normal_vector_world_frame, ctl._lambda_high, ctl._lambda_low, ctl._delta_t, ctl._c_res, ctl._dt_multi, ctl.logger());
+  ctl.solver().addConstraintSet(impulseConstraint);
   //ctl.solver().addConstraintSet(ctl.impulseConstraint);
 
   // Post Bspline velocity task
@@ -193,7 +196,7 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   // _transform_task->targetVel(_target_vel);
   // _transform_task->setGains(0, _velocity_task_stiffness);
   //
-  Eigen::Vector6d dimweights_transform_task = {0,0,0,0,0,0};
+  dimweights_transform_task = {0,0,0,0,0,0};
   // // Remove the orientation part of the BSpline by setting the orientation weights to 0
   // if(!_enable_BSpline_orientation)
   // {
@@ -461,7 +464,7 @@ void Get_In_Position_Task::teardown(mc_control::fsm::Controller & ctl_)
   ctl.trajectories_executed++;
 
   ctl.solver().removeTask(_vectorOrientationTask);
-  ctl.solver().removeConstraintSet(ctl.impulseConstraint);
+  ctl.solver().removeConstraintSet(impulseConstraint);
   ctl.getPostureTask(ctl.robot().name())->refAccel(Eigen::VectorXd::Zero(35));
   rm_logs(ctl_);
   mc_rtc::log::info("Tasks cleared successfully");
