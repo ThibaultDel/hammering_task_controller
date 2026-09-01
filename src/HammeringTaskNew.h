@@ -78,8 +78,11 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
     Eigen::VectorXd qd_previous;
     Eigen::VectorXd tau_imp_true_speed;
     Eigen::VectorXd tau_imp_true_force;
+    Eigen::VectorXd tau_imp;
     Eigen::VectorXd tau_imp_act;
+    Eigen::VectorXd tau_imp_previous;
     Eigen::VectorXd tau_imp_derivate;
+    Eigen::VectorXd tau_imp_derivate_num;
     Eigen::VectorXd tau_imp_derivate_low_limit;
     Eigen::VectorXd tau_imp_derivate_high_limit;
     Eigen::VectorXd end_effector_velocity;
@@ -94,6 +97,7 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
     std::array<double, 3> _damping/* = {0.1, 0.01, 0.5}*/;
     double _vp;
     std::unique_ptr<mc_solver::DynamicsConstraint> dynamicsConstraint;
+    Eigen::MatrixXd M_p;
 
     double _c_res;
     double _lambda_high;
@@ -122,6 +126,32 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
     sva::MotionVecd _contact_stiffness = sva::MotionVecd::Zero();
     sva::MotionVecd _contact_damping = sva::MotionVecd::Zero();
     Eigen::Vector2d _contact_admittance = Eigen::Vector2d::Zero();
+
+    // Get_In_Position Task parameter for gui
+    double _magic_posture_task_weight =1.0f;
+    double _magic_posture_task_stiffness=1.0f;
+
+    double _magic_BSpline_max_duration = 1.0f;
+    double _magic_BSpline_task_stiffness = 1.0f; 
+    double _magic_BSpline_task_damping = 1.0f;
+    double _magic_BSpline_task_weight = 1.0f;
+    double _magic_BSpline_task_dimweight_tx = 1.0f;
+    double _magic_BSpline_task_dimweight_ty = 1.0f;
+    double _magic_BSpline_task_dimweight_tz = 1.0f;
+    double _magic_BSpline_task_dimweight_rx = 1.0f;
+    double _magic_BSpline_task_dimweight_ry = 1.0f;
+    double _magic_BSpline_task_dimweight_rz = 1.0f;
+    Eigen::Vector6d dimweights = {0,0,0,0,0,0};
+    Eigen::Vector3d _magic_init_vel = {0,0,0};
+    double _magic_effective_mass_maximization_task_weight = 1.0f;
+
+    double _magic_vector_orientation_task_weight = 1.0f;
+    double _magic_vector_orientation_task_stiffness = 1.0f;
+    double _magic_vector_orientation_task_damping = 1.0f;
+
+    double _magic_normal_final_velocity = 1.0f;//
+    Eigen::Vector3d _magic_final_velocity = {0, 0, 0};
+
     // ------------------------------ Parameters ---------------------------------------------
     // Parameters loaded in the load_parameters function, parameters are found in the HammeringTaskNew.in.yaml file
     // Don't ask me why there is a '.in' in the name of the file, I don't know 
@@ -194,10 +224,10 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
                                                 mc_control::fsm::Controller & ctl_, 
                                                 const Eigen::Vector3d &normal_vector);
 
-    //double compute_effective_mass_d_with_mbc(rbd::MultiBodyConfig mbc, 
-    //                                            mc_control::fsm::Controller & ctl_, 
-    //                                            const Eigen::Vector3d &normal_vector,
-    //                                            double effective_mass);
+    double compute_effective_mass_d_with_mbc(rbd::MultiBodyConfig mbc, 
+                                                mc_control::fsm::Controller & ctl_, 
+                                                const Eigen::Vector3d &normal_vector,
+                                                double effective_mass);
 
   private:
 
@@ -211,6 +241,11 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
     @brief Adds some graphs to the logs of mc_log_ui
      */
     void add_logs();
+
+    /**
+    @brief Adds interface for live configuration modification element in Rviz and mc_mujoco
+     */
+    void addToGUI();
 
     /**
     @brief Store the force vector retrieved from the nail sensor plugin

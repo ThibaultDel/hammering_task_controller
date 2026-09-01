@@ -1,8 +1,10 @@
 #include "HammeringTaskNew.h"
 #include <RBDyn/MultiBodyConfig.h>
-// #include <mc_solver/TVMImpulseConstraint.h>
-// #include <mc_solver/DynamicsConstraint.h>
-
+#include <mc_solver/TVMImpulseConstraint.h>
+#include <mc_solver/DynamicsConstraint.h>
+#include <mc_rtc/gui/NumberInput.h>
+#include <mc_rtc/gui/ArrayInput.h>
+#include <mc_rtc/gui/Transform.h>
 
 HammeringTaskNew::HammeringTaskNew(mc_rbdyn::RobotModulePtr rm, double dt, const mc_rtc::Configuration & config)
 : mc_control::fsm::Controller(rm, dt, config, Backend::TVM)
@@ -15,15 +17,15 @@ HammeringTaskNew::HammeringTaskNew(mc_rbdyn::RobotModulePtr rm, double dt, const
   load_parameters();
 
   add_logs();
-  nh = mc_rtc::ROSBridge::get_node_handle();
+  //nh = mc_rtc::ROSBridge::get_node_handle();
   // Not the cleanest but at leat mc_mujoco does not crash
-  if(nh != nullptr)
-  {
-    subForce = nh->create_subscription<geometry_msgs::msg::Vector3Stamped>(
-                  "/nail_force_sensor", 
-                  1000,
-                  std::bind(&HammeringTaskNew::nail_force_sensor_callback, this, std::placeholders::_1));
-  }
+  //if(nh != nullptr)
+  //{
+  //  subForce = nh->create_subscription<geometry_msgs::msg::Vector3Stamped>(
+  //                "/nail_force_sensor", 
+  //                1000,
+  //                std::bind(&HammeringTaskNew::nail_force_sensor_callback, this, std::placeholders::_1));
+  //}
   // Not the cleanest but at leat mc_mujoco does not crash
   nail_rot = robot(nail_robot_name).frame(nail_frame_name).position().rotation();
 
@@ -52,7 +54,7 @@ HammeringTaskNew::HammeringTaskNew(mc_rbdyn::RobotModulePtr rm, double dt, const
   Eigen::Vector3d normal_nail = robot(nail_robot_name).frame(nail_frame_name).position().rotation().col(2).eval();
   mc_rtc::log::info("the normal nail norm {}", normal_nail.norm());
   impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(robots(), robot().robotIndex(), robot().frame(hammer_head_frame_name), normal_nail, _lambda_high, _lambda_low, _delta_t, _c_res, _dt_multi, logger());
-  solver().addConstraintSet(impulseConstraint);
+  //solver().addConstraintSet(impulseConstraint);
 
   // Load default configuration from robot module
   stabiConf = robot().module().defaultLIPMStabilizerConfiguration();
@@ -93,7 +95,7 @@ HammeringTaskNew::HammeringTaskNew(mc_rbdyn::RobotModulePtr rm, double dt, const
 
   stabiConf = stabilizerTask->config();
 
-  auto stab_config = stabilizerTask->config();
+  auto stabconfig_ = stabilizerTask->config();
 
   auto & Active_tasks = solver().tasks();
   for (auto i:Active_tasks){
@@ -101,6 +103,8 @@ HammeringTaskNew::HammeringTaskNew(mc_rbdyn::RobotModulePtr rm, double dt, const
   }
 
   qd_previous=Eigen::VectorXd::Zero(robot().mb().nrDof());
+  M_p=robot().tvmRobot().H();
+  addToGUI();
   mc_rtc::log::success("HammeringTaskNew init done ");
 }
 
@@ -150,10 +154,10 @@ bool HammeringTaskNew::run()
   Eigen::MatrixXd & J_ = full_world_frame_jacobian;
   jac.fullJacobian(robot().mb(), world_frame_jacobian, J_);
 
-  // const auto & world_frame_jacobian_dot = jac.jacobianDot(robot().mb(), robot().mbc());
-  // Eigen::MatrixXd full_world_frame_jacobian_dot(6, robot().mb().nrDof());
-  // jac.fullJacobian(robot().mb() , world_frame_jacobian_dot, full_world_frame_jacobian_dot);
-  // Eigen::MatrixXd & J_d = full_world_frame_jacobian_dot;
+  const auto & world_frame_jacobian_dot = jac.jacobianDot(robot().mb(), robot().mbc());
+  Eigen::MatrixXd full_world_frame_jacobian_dot(6, robot().mb().nrDof());
+  jac.fullJacobian(robot().mb() , world_frame_jacobian_dot, full_world_frame_jacobian_dot);
+  Eigen::MatrixXd & J_d = full_world_frame_jacobian_dot;
 
   //Impulsive torque nail force method
   rbd::Jacobian jac_sensor(robot().mb(), "Larm_Link6"); //eft hand sensor associated joint
@@ -170,6 +174,7 @@ bool HammeringTaskNew::run()
 
   P_n = Eigen::Matrix<double, 6, 6>::Zero();
   P_n.block<3,3>(3,3) = P_n_sub;
+  Eigen::VectorXd  q_d = tvm::dot(robot().tvmRobot().q(),1)->value();
   qd=robot().encoderVelocities();
 
   qdm = Eigen::VectorXd::Zero(robot().mb().nrDof());
@@ -213,25 +218,30 @@ bool HammeringTaskNew::run()
   qdm(36) = qd.at(21);//REP
   qdm(37) = qd.at(22);//RWRY
   qdm(38) = qd.at(23);//RWRR
-  qdm(39) = qd.at(24);//RWRP
+  qdm(39) = qd.at(24);//RWRPM_p
   qdm(40) = qd.at(25);//RHDY
 
 
   effective_mass=compute_effective_mass_with_mbc(robot().mbc(),*this,nail_normal_vector_world_frame);
-  //effective_mass_diff=compute_effective_mass_d_with_mbc(robot().mbc(),*this,nail_normal_vector_world_frame,effective_mass);
+  effective_mass_diff=compute_effective_mass_d_with_mbc(robot().mbc(),*this,nail_normal_vector_world_frame,effective_mass);
   Eigen::MatrixXd effective_mass_matrix=(J_*robot().tvmRobot().H().inverse()*J_.transpose()).inverse();
   tau_imp_true_speed=(J_.transpose()*effective_mass*P_n*J_)*(qd_previous-qdm)/_delta_t;
 
   Eigen::Matrix3d R = Eigen::AngleAxisd(-M_PI/4.0, Eigen::Vector3d::UnitX()).toRotationMatrix();
   tau_imp_true_force=J_Larm_sensor_.transpose()*P_n_sub*(R*robot().forceSensor("LeftHandForceSensor").force());
-  tau_imp_act = (-1.f*(_c_res+1)/_delta_t)*J_.transpose()*effective_mass*P_n*J_*qdm;// use just for logging
-  // tau_imp_derivate = -(_c_res+1)/_delta_t*((J_d.transpose()*effective_mass*P_n*J_
-  // +J_.transpose()*effective_mass_diff*P_n*J_
-  // +J_.transpose()*effective_mass*P_n*J_d)*qdm
-  // +(J_.transpose()*effective_mass*P_n*J_)*(qdm-qd_previous)/_delta_t);
+  tau_imp = (-1.f*(_c_res+1)/_delta_t)*J_.transpose()*effective_mass*P_n*J_*q_d;
+  tau_imp_act = (-1.f*(_c_res+1)/_delta_t)*J_.transpose()*effective_mass*P_n*J_*q_d;// use just for logging
+  tau_imp_derivate = -(_c_res+1)/_delta_t*((J_d.transpose()*effective_mass*P_n*J_
+  +J_.transpose()*effective_mass_diff*P_n*J_
+  +J_.transpose()*effective_mass*P_n*J_d)*qdm
+  +(J_.transpose()*effective_mass*P_n*J_)*(qdm-qd_previous)/_delta_t);
+  tau_imp_derivate_num = (tau_imp_act-tau_imp_previous)/_delta_t;
+  tau_imp_previous = tau_imp_act;
+  mc_solver::TVMImpulseConstraint* High_constraint = static_cast<mc_solver::TVMImpulseConstraint *>(impulseConstraint->getConstraint().get());
+  mc_solver::TVMImpulseConstraint* Low_constraint = static_cast<mc_solver::TVMImpulseConstraint *>(impulseConstraint->getConstraint().get());
 
-  //tau_imp_derivate_low_limit=(static_cast<mc_solver::TVMImpulseConstraint *>(impulseConstraint->getConstraint().get())->LowerLimit()-tau_imp_act)/_delta_t;
-  //tau_imp_derivate_high_limit=(static_cast<mc_solver::TVMImpulseConstraint *>(impulseConstraint->getConstraint().get())->UpperLimit()-tau_imp_act)/_delta_t;
+  tau_imp_derivate_low_limit=(High_constraint->LowerLimit()-tau_imp_act)*High_constraint->impFunctionHigh()->EffectiveLambda();
+  tau_imp_derivate_high_limit=(Low_constraint->UpperLimit()-tau_imp_act)*Low_constraint->impFunctionLow()->EffectiveLambda();
 
   qd_previous = qdm;
   return mc_control::fsm::Controller::run(mc_solver::FeedbackType::OpenLoop); // TODO: set to closedloop
@@ -245,6 +255,31 @@ void HammeringTaskNew::reset(const mc_control::ControllerResetData & reset_data)
   mc_control::fsm::Controller::reset(reset_data);
 }
 
+void HammeringTaskNew::addToGUI()
+{
+  this->gui()->addElement({"Hammering task"},
+      mc_rtc::gui::ArrayInput("trajectory task weight"
+      ,[this]() {return this->dimweights;}
+      ,[this](const Eigen::Vector6d & weight) {this->dimweights = weight;}),
+      mc_rtc::gui::ArrayInput("Orientation (weight stiffness damping)"
+      ,[this]() { return Eigen::Vector3d{this->_magic_vector_orientation_task_weight,this->_magic_vector_orientation_task_stiffness,this->_magic_vector_orientation_task_damping};}
+      ,[this](const Eigen::Vector3d & orientation_param) {_magic_vector_orientation_task_weight=orientation_param(0);
+                                                          _magic_vector_orientation_task_stiffness=orientation_param(1);
+                                                          _magic_vector_orientation_task_damping=orientation_param(2);}),
+      mc_rtc::gui::ArrayInput("Bspline task (weight stiffness damping)"
+      ,[this]() { return Eigen::Vector3d{this->_magic_BSpline_task_weight,this->_magic_BSpline_task_stiffness,this->_magic_BSpline_task_damping};}
+      ,[this](const Eigen::Vector3d & Bspline_param) {_magic_BSpline_task_weight=Bspline_param(0);
+                                                          _magic_BSpline_task_stiffness=Bspline_param(1);
+                                                          _magic_BSpline_task_damping=Bspline_param(2);}),
+      mc_rtc::gui::ArrayInput("Bspline params (duration final_velocity)"
+      ,[this]() { return Eigen::Matrix<double, 2, 1>{this->_magic_BSpline_max_duration,this->_magic_normal_final_velocity};}
+      ,[this](const Eigen::Matrix<double, 2, 1> & Bspline_param) {_magic_BSpline_max_duration=Bspline_param(0);
+                                                          _magic_normal_final_velocity=Bspline_param(1);
+                                                          _magic_final_velocity=_magic_final_velocity*_magic_normal_final_velocity;}),
+      mc_rtc::gui::ArrayInput("Bspline init velocity (Vx Vy Vz)"
+      ,[this]() { return this->_magic_init_vel;}
+      ,[this](const Eigen::Vector3d & Bspline_init_velocity) {this->_magic_init_vel = Bspline_init_velocity;}));                                                       
+}
 
 double HammeringTaskNew::compute_effective_mass_with_mbc(
   rbd::MultiBodyConfig mbc, 
@@ -272,40 +307,40 @@ double HammeringTaskNew::compute_effective_mass_with_mbc(
   return 1/(normal_vector.transpose()*LAMBDA*normal_vector);
   }
 
-// double HammeringTaskNew::compute_effective_mass_d_with_mbc(
-//   rbd::MultiBodyConfig mbc, 
-//   mc_control::fsm::Controller & ctl_, 
-//   const Eigen::Vector3d &normal_vector,double effective_mass){
+double HammeringTaskNew::compute_effective_mass_d_with_mbc(
+  rbd::MultiBodyConfig mbc, 
+  mc_control::fsm::Controller & ctl_, 
+  const Eigen::Vector3d &normal_vector,double effective_mass){
 
-//   HammeringTaskNew &ctl = static_cast<HammeringTaskNew &>(ctl_);
+  HammeringTaskNew &ctl = static_cast<HammeringTaskNew &>(ctl_);
 
-//   // If you dont put this line the gradient is 0 everywhere because M and J are not updating
-//   rbd::MultiBody robot_mb = ctl_.robot().mb();
-//   rbd::Jacobian jac(robot_mb, ctl.hammer_head_frame_name);
-//   Eigen::MatrixXd world_frame_jacobian = jac.jacobian(robot_mb, mbc);
+  // If you dont put this line the gradient is 0 everywhere because M and J are not updating
+  rbd::MultiBody robot_mb = ctl_.robot().mb();
+  rbd::Jacobian jac(robot_mb, ctl.hammer_head_frame_name);
+  Eigen::MatrixXd world_frame_jacobian = jac.jacobian(robot_mb, mbc);
 
-//   Eigen::MatrixXd full_world_frame_jacobian(6, ctl.robot().mb().nrDof());
-//   jac.fullJacobian(robot_mb, world_frame_jacobian, full_world_frame_jacobian);
+  Eigen::MatrixXd full_world_frame_jacobian(6, ctl.robot().mb().nrDof());
+  jac.fullJacobian(robot_mb, world_frame_jacobian, full_world_frame_jacobian);
 
-//   const auto & world_frame_jacobian_dot = jac.jacobianDot(robot_mb, mbc);
-//   Eigen::MatrixXd full_world_frame_jacobian_dot(6, robot().mb().nrDof());
-//   jac.fullJacobian(robot_mb, world_frame_jacobian_dot, full_world_frame_jacobian_dot);
+  const auto & world_frame_jacobian_dot = jac.jacobianDot(robot_mb, mbc);
+  Eigen::MatrixXd full_world_frame_jacobian_dot(6, robot().mb().nrDof());
+  jac.fullJacobian(robot_mb, world_frame_jacobian_dot, full_world_frame_jacobian_dot);
 
-//   Eigen::MatrixXd linear_jacobian = full_world_frame_jacobian.bottomRows(3);
-//   Eigen::MatrixXd linear_jacobiand = full_world_frame_jacobian_dot.bottomRows(3);
+  Eigen::MatrixXd linear_jacobian = full_world_frame_jacobian.bottomRows(3);
+  Eigen::MatrixXd linear_jacobiand = full_world_frame_jacobian_dot.bottomRows(3);
 
-//   rbd::ForwardDynamics fd(robot_mb);
-//   fd.computeH(robot_mb, mbc);
-//   Eigen::MatrixXd M = fd.H();
-//   Eigen::MatrixXd Mi = fd.H().inverse();
-//   Eigen::MatrixXd M_d_ = fd.C()+fd.C().transpose();
-
-//   Eigen::Matrix3d LAMBDA = linear_jacobian*M.inverse()*linear_jacobian.transpose();
-//   end_effector_velocity=linear_jacobian*qdm;
-//   return -1. * (normal_vector.transpose() * (linear_jacobiand * Mi * linear_jacobian.transpose() -
-//   linear_jacobian * Mi * M_d_ * Mi * linear_jacobian.transpose() +
-//   linear_jacobian * Mi * linear_jacobiand.transpose()) * normal_vector)(0,0) * effective_mass * effective_mass;
-//   }
+  rbd::ForwardDynamics fd(robot_mb);
+  fd.computeH(robot_mb, mbc);
+  Eigen::MatrixXd M = fd.H();
+  Eigen::MatrixXd Mi = fd.H().inverse();
+  Eigen::MatrixXd M_d_ = (ctl_.robot().tvmRobot().H()-M_p)/solver().dt();
+  M_p=fd.H();
+  Eigen::Matrix3d LAMBDA = linear_jacobian*M.inverse()*linear_jacobian.transpose();
+  end_effector_velocity=linear_jacobian*qdm;
+  return -1. * (normal_vector.transpose() * (linear_jacobiand * Mi * linear_jacobian.transpose() -
+  linear_jacobian * Mi * M_d_ * Mi * linear_jacobian.transpose() +
+  linear_jacobian * Mi * linear_jacobiand.transpose()) * normal_vector)(0,0) * effective_mass * effective_mass;
+  }
 
 
 
@@ -380,8 +415,46 @@ void HammeringTaskNew::load_parameters()
   _contact_damping = config_(global_control_param_key)(stabilizer_key)("contact")("damping");
   _contact_admittance = config_(global_control_param_key)(stabilizer_key)("contact")("admittance");
 
+  // ------------------------ Loading Bspline hammering parameters ---------------------------
+  std::string curve_constraints_key = "curve_constraints";
+  std::string linear_velocity_key = "linear_velocity";
+  std::string linear_acceleration_key = "linear_acceleration";
+  std::string hitting_tasks_paramater = "hitting_tasks_paramater";
+  std::string x_key = "x";
+  std::string y_key = "y";
+  std::string z_key = "z";
 
+  std::string init_key = "init";
+  std::string end_key = "end";
 
+  _magic_posture_task_weight = config_(global_control_param_key)(hitting_tasks_paramater)("magic_posture_task_weight");
+  _magic_posture_task_stiffness = config_(global_control_param_key)(hitting_tasks_paramater)("magic_posture_task_stiffness");
+
+  _magic_effective_mass_maximization_task_weight = config_(global_control_param_key)(hitting_tasks_paramater)("magic_effective_mass_maximization_task_weight");
+
+  _magic_vector_orientation_task_weight = config_(global_control_param_key)(hitting_tasks_paramater)("magic_vector_orientation_task_weight");
+  _magic_vector_orientation_task_stiffness = config_(global_control_param_key)(hitting_tasks_paramater)("magic_vector_orientation_task_stiffness");
+  _magic_vector_orientation_task_damping = config_(global_control_param_key)(hitting_tasks_paramater).has("magic_vector_orientation_task_damping") ? config_(global_control_param_key)(hitting_tasks_paramater)("magic_vector_orientation_task_damping") : 2.0 * sqrt(_magic_vector_orientation_task_stiffness);
+
+  _magic_BSpline_task_dimweight_rx = config_(global_control_param_key)(hitting_tasks_paramater)("magic_BSpline_task_dimweight_rx");
+  _magic_BSpline_task_dimweight_ry = config_(global_control_param_key)(hitting_tasks_paramater)("magic_BSpline_task_dimweight_ry");
+  _magic_BSpline_task_dimweight_rz = config_(global_control_param_key)(hitting_tasks_paramater)("magic_BSpline_task_dimweight_rz");
+  _magic_BSpline_task_dimweight_tx = config_(global_control_param_key)(hitting_tasks_paramater)("magic_BSpline_task_dimweight_tx");
+  _magic_BSpline_task_dimweight_ty = config_(global_control_param_key)(hitting_tasks_paramater)("magic_BSpline_task_dimweight_ty");
+  _magic_BSpline_task_dimweight_tz = config_(global_control_param_key)(hitting_tasks_paramater)("magic_BSpline_task_dimweight_tz");
+  dimweights(0) = _magic_BSpline_task_dimweight_rx; // dimweigth to be deleted
+  dimweights(1) = _magic_BSpline_task_dimweight_ry;
+  dimweights(2) = _magic_BSpline_task_dimweight_rz;
+  dimweights(3) = _magic_BSpline_task_dimweight_tx;
+  dimweights(4) = _magic_BSpline_task_dimweight_ty;
+  dimweights(5) = _magic_BSpline_task_dimweight_tz;  
+  _magic_BSpline_max_duration = config_(global_control_param_key)(hitting_tasks_paramater)("magic_BSpline_max_duration");
+  _magic_BSpline_task_stiffness = config_(global_control_param_key)(hitting_tasks_paramater)("magic_BSpline_task_stiffness");
+  _magic_BSpline_task_damping = config_(global_control_param_key)(hitting_tasks_paramater).has("magic_BSpline_task_damping") ? config_(global_control_param_key)(hitting_tasks_paramater)("magic_BSpline_task_damping") : 2.0 * sqrt(_magic_BSpline_task_stiffness);
+  _magic_BSpline_task_weight = config_(global_control_param_key)(hitting_tasks_paramater)("magic_BSpline_task_weight");
+  _magic_final_velocity = config_(global_control_param_key)(hitting_tasks_paramater)(curve_constraints_key)("magic_final_velocity");
+  _magic_init_vel= config_(global_control_param_key)(hitting_tasks_paramater)(curve_constraints_key)("magic_init_velocity");
+  
 }
 
 void HammeringTaskNew::add_logs()
@@ -389,17 +462,23 @@ void HammeringTaskNew::add_logs()
     logger().addLogEntry("Hammer tip velocity controller", this, [&,this]()
     {return end_effector_velocity;});
 
+    logger().addLogEntry("ImpulsiveTorquePredicted_Qptorque", this, [&,this]()
+    {return tau_imp;});
+
     logger().addLogEntry("ImpulsiveTorquePredicted_Actual", this, [&,this]()
     {return tau_imp_act;});
 
     logger().addLogEntry("ImpulsiveTorquePredicted_derivative", this, [&,this]()
     {return tau_imp_derivate;});
+    
+    logger().addLogEntry("ImpulsiveTorquePredicted_numderivative", this, [&,this]()
+    {return tau_imp_derivate_num;});
 
-    //logger().addLogEntry("ImpulsiveTorquePredicted_low_limit_derivative", this, [&,this]()
-    //{return tau_imp_derivate_low_limit;});
+    logger().addLogEntry("ImpulsiveTorquePredicted_low_limit_derivative", this, [&,this]()
+    {return tau_imp_derivate_low_limit;});
 
-    //logger().addLogEntry("ImpulsiveTorquePredicted_high_limit_derivative", this, [&,this]()
-    //{return tau_imp_derivate_high_limit;});
+    logger().addLogEntry("ImpulsiveTorquePredicted_high_limit_derivative", this, [&,this]()
+    {return tau_imp_derivate_high_limit;});
 
     logger().addLogEntry("ImpulsiveTorquesimulated_speed",this,[&,this]
     {return tau_imp_true_speed;});

@@ -36,7 +36,12 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   // _constr.end_vel.x() = _magic_normal_final_velocity*ctl.nail_normal_vector_world_frame.x();
   // _constr.end_vel.y() = _magic_normal_final_velocity*ctl.nail_normal_vector_world_frame.y();
   // _constr.end_vel.z() = _magic_normal_final_velocity*ctl.nail_normal_vector_world_frame.z();
-  _constr.end_vel = ctl.nail_rot.transpose()*_magic_normal_final_velocity;
+  _constr.init_vel.x()=ctl._magic_init_vel(0);
+  _constr.init_vel.y()=ctl._magic_init_vel(1);
+  _constr.init_vel.z()=ctl._magic_init_vel(2);
+  
+  
+  _constr.end_vel = ctl.nail_rot.transpose()*ctl._magic_final_velocity;
 
   // No need for orientation waypoints so _oriWp is empty
   _oriWp = {};
@@ -56,20 +61,20 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   // Curve constraints add 4 control points and we already have the starting point and the final point.
   // Thus, the degree of the BSpline is 5 (the degree is N-1 points).
 
-  mc_rtc::log::info("Adding BSpline task with weight {}", _magic_BSpline_task_weight);
-
+  mc_rtc::log::info("Adding BSpline task with weight {}", ctl._magic_BSpline_task_weight);
+  
   _BSplineVel = std::make_shared<mc_tasks::BSplineTrajectoryTask>(ctl.robot().frame(ctl.hammer_head_frame_name),
-                                                                  _magic_BSpline_max_duration,
-                                                                  _magic_BSpline_task_stiffness, 
-                                                                  _magic_BSpline_task_weight, 
+                                                                  ctl._magic_BSpline_max_duration,
+                                                                  ctl._magic_BSpline_task_stiffness, 
+                                                                  ctl._magic_BSpline_task_weight, 
                                                                   _target, 
                                                                   _constr,
                                                                   _posWp, 
                                                                   _oriWp);
 
-  _BSplineVel->setGains(_magic_BSpline_task_stiffness, _magic_BSpline_task_damping);
+  _BSplineVel->setGains(ctl._magic_BSpline_task_stiffness, ctl._magic_BSpline_task_damping);
 
-  Eigen::Vector6d dimweights = _BSplineVel->dimWeight();
+  //Eigen::Vector6d dimweights = _BSplineVel->dimWeight(); // dimweigth to be deleted
   // Remove the orientation part of the BSpline by setting the orientation weights to 0
   // if(!_enable_BSpline_orientation)
   // {
@@ -78,13 +83,13 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   //   dimweights(2) = 0;
   // }
   // Increase the weights on the x and y coordinates
-  dimweights(0) = _magic_BSpline_task_dimweight_rx;
-  dimweights(1) = _magic_BSpline_task_dimweight_ry;
-  dimweights(2) = _magic_BSpline_task_dimweight_rz;
-  dimweights(3) = _magic_BSpline_task_dimweight_tx;
-  dimweights(4) = _magic_BSpline_task_dimweight_ty;
-  dimweights(5) = _magic_BSpline_task_dimweight_tz;
-  _BSplineVel->dimWeight(dimweights);
+  // dimweights(0) = _magic_BSpline_task_dimweight_rx; // dimweigth to be deleted
+  // dimweights(1) = _magic_BSpline_task_dimweight_ry;
+  // dimweights(2) = _magic_BSpline_task_dimweight_rz;
+  // dimweights(3) = _magic_BSpline_task_dimweight_tx;
+  // dimweights(4) = _magic_BSpline_task_dimweight_ty;
+  // dimweights(5) = _magic_BSpline_task_dimweight_tz;
+  _BSplineVel->dimWeight(ctl.dimweights);
   ctl.solver().addTask(_BSplineVel);
   ctl.bspline_active_ = true;
 
@@ -132,7 +137,7 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   mc_rtc::log::info("Degree of BSpline : {}", _BSplineVel->spline().get_bezier()->degree());
 
   ctl.getPostureTask(ctl.robot().name())->stiffness(_magic_posture_task_stiffness);
-  ctl.getPostureTask(ctl.robot().name())->weight(_magic_posture_task_weight);
+  ctl.getPostureTask(ctl.robot().name())->weight(ctl._magic_posture_task_weight);
 
   // gripper_task->target(sva::PTransformd(sva::RotY(M_PI)) * sva::PTransformd(sva::RotZ(M_PI/2)) * sva::PTransformd(Eigen::Vector3d(0 ,0, 0.025)) * ctl.robot("box").frame("Right").position());
 
@@ -152,12 +157,12 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   //   dimweights_grip(2) = 0;
   // }
   // Increase the weights on the x and y coordinates
-  dimweights_grip(0) = _magic_BSpline_task_dimweight_rx;
-  dimweights_grip(1) = _magic_BSpline_task_dimweight_ry;
-  dimweights_grip(2) = _magic_BSpline_task_dimweight_rz;
-  dimweights_grip(3) = _magic_BSpline_task_dimweight_tx;
-  dimweights_grip(4) = _magic_BSpline_task_dimweight_ty;
-  dimweights_grip(5) = _magic_BSpline_task_dimweight_tz;
+  // dimweights_grip(0) = _magic_BSpline_task_dimweight_rx;
+  // dimweights_grip(1) = _magic_BSpline_task_dimweight_ry;
+  // dimweights_grip(2) = _magic_BSpline_task_dimweight_rz;
+  // dimweights_grip(3) = _magic_BSpline_task_dimweight_tx;
+  // dimweights_grip(4) = _magic_BSpline_task_dimweight_ty;
+  // dimweights_grip(5) = _magic_BSpline_task_dimweight_tz;
   // gripper_task->dimWeight(dimweights_grip);
 
 
@@ -167,9 +172,9 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
                                                                             ctl.normal_vector_to_align_in_hammerhead_frame
   );
   _vectorOrientationTask->targetVector(-ctl.nail_normal_vector_world_frame);
-  _vectorOrientationTask->weight(_magic_vector_orientation_task_weight);
-  _vectorOrientationTask->stiffness(_magic_vector_orientation_task_stiffness);
-  _vectorOrientationTask->damping(_magic_vector_orientation_task_damping);
+  _vectorOrientationTask->weight(ctl._magic_vector_orientation_task_weight);
+  _vectorOrientationTask->stiffness(ctl._magic_vector_orientation_task_stiffness);
+  _vectorOrientationTask->damping(ctl._magic_vector_orientation_task_damping);
   ctl.solver().addTask(_vectorOrientationTask);
 
   mc_rtc::log::info("Mass of the nail = {} kg", ctl.robot(ctl.nail_robot_name).mass());
@@ -188,7 +193,7 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   // _transform_task->targetVel(_target_vel);
   // _transform_task->setGains(0, _velocity_task_stiffness);
   //
-  // Eigen::Vector6d dimweights_transform_task = _transform_task->dimWeight();
+  Eigen::Vector6d dimweights_transform_task = {0,0,0,0,0,0};
   // // Remove the orientation part of the BSpline by setting the orientation weights to 0
   // if(!_enable_BSpline_orientation)
   // {
@@ -309,7 +314,7 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
     joint_selector(joint_index, joint_index) = 1.0;
   }
 
-  Eigen::VectorXd feedforward_term = (_magic_effective_mass_maximization_task_weight/_magic_posture_task_weight) * joint_selector * _gradient_of_m.tail(ctl.robot().tvmRobot().qJoints()->size());
+  Eigen::VectorXd feedforward_term = (ctl._magic_effective_mass_maximization_task_weight/ctl._magic_posture_task_weight) * joint_selector * _gradient_of_m.tail(ctl.robot().tvmRobot().qJoints()->size());
   ctl.getPostureTask(ctl.robot().name())->refAccel(feedforward_term);
 
   auto q_d = ctl.robot().tvmRobot().alpha()->value();
@@ -355,7 +360,7 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
     mc_rtc::log::info("b spline text file written");
   }
 
-  if(_total_time_elapsed > (_magic_BSpline_max_duration/*+1.f*/) && stop_height_flag){
+  if(_total_time_elapsed > (ctl._magic_BSpline_max_duration/*+1.f*/) && stop_height_flag){
     ctl.comparisonRobots_->robot().posW(sva::PTransformd(ctl.floatingBaseSensor_.orientation(), ctl.floatingBaseSensor_.position()));
     ctl.comparisonRobots_->robot().mbc().q = ctl.realRobot().mbc().q;
 
@@ -1304,28 +1309,29 @@ const double Get_In_Position_Task::emass_time_derivative_with_mbc_alpha(const Ei
 
   return dmdt;
 }
+
 void Get_In_Position_Task::load_params()
 {
   std::string magic_values_key = "magic_values";
-  _magic_posture_task_weight = _config(magic_values_key)("magic_posture_task_weight");
-  _magic_posture_task_stiffness = _config(magic_values_key)("magic_posture_task_stiffness");
+  // _magic_posture_task_weight = _config(magic_values_key)("magic_posture_task_weight");
+  // _magic_posture_task_stiffness = _config(magic_values_key)("magic_posture_task_stiffness");
 
-  _magic_effective_mass_maximization_task_weight = _config(magic_values_key)("magic_effective_mass_maximization_task_weight");
+  // _magic_effective_mass_maximization_task_weight = _config(magic_values_key)("magic_effective_mass_maximization_task_weight");
 
-  _magic_vector_orientation_task_weight = _config(magic_values_key)("magic_vector_orientation_task_weight");
-  _magic_vector_orientation_task_stiffness = _config(magic_values_key)("magic_vector_orientation_task_stiffness");
-  _magic_vector_orientation_task_damping = _config(magic_values_key).has("magic_vector_orientation_task_damping") ? _config(magic_values_key)("magic_vector_orientation_task_damping") : 2.0 * sqrt(_magic_vector_orientation_task_stiffness);
+  // _magic_vector_orientation_task_weight = _config(magic_values_key)("magic_vector_orientation_task_weight");
+  // _magic_vector_orientation_task_stiffness = _config(magic_values_key)("magic_vector_orientation_task_stiffness");
+  // _magic_vector_orientation_task_damping = _config(magic_values_key).has("magic_vector_orientation_task_damping") ? _config(magic_values_key)("magic_vector_orientation_task_damping") : 2.0 * sqrt(_magic_vector_orientation_task_stiffness);
 
-  _magic_BSpline_task_dimweight_rx = _config(magic_values_key)("magic_BSpline_task_dimweight_rx");
-  _magic_BSpline_task_dimweight_ry = _config(magic_values_key)("magic_BSpline_task_dimweight_ry");
-  _magic_BSpline_task_dimweight_rz = _config(magic_values_key)("magic_BSpline_task_dimweight_rz");
-  _magic_BSpline_task_dimweight_tx = _config(magic_values_key)("magic_BSpline_task_dimweight_tx");
-  _magic_BSpline_task_dimweight_ty = _config(magic_values_key)("magic_BSpline_task_dimweight_ty");
-  _magic_BSpline_task_dimweight_tz = _config(magic_values_key)("magic_BSpline_task_dimweight_tz");
-  _magic_BSpline_max_duration = _config(magic_values_key)("magic_BSpline_max_duration");
-  _magic_BSpline_task_stiffness = _config(magic_values_key)("magic_BSpline_task_stiffness");
-  _magic_BSpline_task_damping = _config(magic_values_key).has("magic_BSpline_task_damping") ? _config(magic_values_key)("magic_BSpline_task_damping") : 2.0 * sqrt(_magic_BSpline_task_stiffness);
-  _magic_BSpline_task_weight = _config(magic_values_key)("magic_BSpline_task_weight");
+  // _magic_BSpline_task_dimweight_rx = _config(magic_values_key)("magic_BSpline_task_dimweight_rx");
+  // _magic_BSpline_task_dimweight_ry = _config(magic_values_key)("magic_BSpline_task_dimweight_ry");
+  // _magic_BSpline_task_dimweight_rz = _config(magic_values_key)("magic_BSpline_task_dimweight_rz");
+  // _magic_BSpline_task_dimweight_tx = _config(magic_values_key)("magic_BSpline_task_dimweight_tx");
+  // _magic_BSpline_task_dimweight_ty = _config(magic_values_key)("magic_BSpline_task_dimweight_ty");
+  // _magic_BSpline_task_dimweight_tz = _config(magic_values_key)("magic_BSpline_task_dimweight_tz");
+  // _magic_BSpline_max_duration = _config(magic_values_key)("magic_BSpline_max_duration");
+  // _magic_BSpline_task_stiffness = _config(magic_values_key)("magic_BSpline_task_stiffness");
+  // _magic_BSpline_task_damping = _config(magic_values_key).has("magic_BSpline_task_damping") ? _config(magic_values_key)("magic_BSpline_task_damping") : 2.0 * sqrt(_magic_BSpline_task_stiffness);
+  // _magic_BSpline_task_weight = _config(magic_values_key)("magic_BSpline_task_weight");
 
   _logging_freq = _config(magic_values_key)("logging_freq");
 
@@ -1348,11 +1354,11 @@ void Get_In_Position_Task::load_params()
 
   std::string init_key = "init";
   std::string end_key = "end";
-  _magic_normal_final_velocity = _config(curve_constraints_key)("magic_normal_final_velocity");
+  //_magic_normal_final_velocity = _config(curve_constraints_key)("magic_normal_final_velocity");
 
-  _constr.init_vel.x() = _config(curve_constraints_key)(linear_velocity_key)(x_key)(init_key);
-  _constr.init_vel.y() = _config(curve_constraints_key)(linear_velocity_key)(y_key)(init_key);
-  _constr.init_vel.z() = _config(curve_constraints_key)(linear_velocity_key)(z_key)(init_key);
+  // _constr.init_vel.x() = _config(curve_constraints_key)(linear_velocity_key)(0);
+  // _constr.init_vel.y() = _config(curve_constraints_key)(linear_velocity_key)(1);
+  // _constr.init_vel.z() = _config(curve_constraints_key)(linear_velocity_key)(2);
 
   _constr.init_acc.x() = _config(curve_constraints_key)(linear_acceleration_key)(x_key)(init_key);
   _constr.init_acc.y() = _config(curve_constraints_key)(linear_acceleration_key)(y_key)(init_key);

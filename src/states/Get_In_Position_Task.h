@@ -137,20 +137,20 @@ struct Get_In_Position_Task : mc_control::fsm::State
     mc_rtc::Configuration _config;
 
     void load_params();
-
-    double _magic_BSpline_max_duration = 1.0f;
-    double _magic_BSpline_task_stiffness = 1.0f; 
-    double _magic_BSpline_task_damping = 1.0f;
-    double _magic_BSpline_task_weight = 1.0f;
-    double _magic_BSpline_task_dimweight_tx = 1.0f;
-    double _magic_BSpline_task_dimweight_ty = 1.0f;
-    double _magic_BSpline_task_dimweight_tz = 1.0f;
-    double _magic_BSpline_task_dimweight_rx = 1.0f;
-    double _magic_BSpline_task_dimweight_ry = 1.0f;
-    double _magic_BSpline_task_dimweight_rz = 1.0f;
+// To be deleted
+//     double _magic_BSpline_max_duration = 1.0f;
+//     double _magic_BSpline_task_stiffness = 1.0f; 
+//     double _magic_BSpline_task_damping = 1.0f;
+//     double _magic_BSpline_task_weight = 1.0f;
+//     double _magic_BSpline_task_dimweight_tx = 1.0f;
+//     double _magic_BSpline_task_dimweight_ty = 1.0f;
+//     double _magic_BSpline_task_dimweight_tz = 1.0f;
+//     double _magic_BSpline_task_dimweight_rx = 1.0f;
+//     double _magic_BSpline_task_dimweight_ry = 1.0f;
+//     double _magic_BSpline_task_dimweight_rz = 1.0f;
 
     //V^w_f,in, c.f. article    
-    Eigen::Vector3d _magic_normal_final_velocity = {0, 0, 0};
+//    Eigen::Vector3d _magic_normal_final_velocity = {0, 0, 0};
 
     //W_p, c.f. article or internship report
     double _magic_posture_task_weight = 1.0f;
@@ -243,12 +243,12 @@ struct Get_In_Position_Task : mc_control::fsm::State
 
     bool already_logged = false;
 
-    //W_m, c.f. article or internship report
-    double _magic_effective_mass_maximization_task_weight = 1.0f;
+    //W_m, c.f. article or internship report to be deleted
+//     double _magic_effective_mass_maximization_task_weight = 1.0f;
 
-    double _magic_vector_orientation_task_weight = 1.0f;
-    double _magic_vector_orientation_task_stiffness = 1.0f;
-    double _magic_vector_orientation_task_damping = 1.0f;
+//     double _magic_vector_orientation_task_weight = 1.0f;
+//     double _magic_vector_orientation_task_stiffness = 1.0f;
+//     double _magic_vector_orientation_task_damping = 1.0f;
 
     double _gripper_task_weight = 1.0f;
     double _gripper_task_min_stiffness = 1.0f;
