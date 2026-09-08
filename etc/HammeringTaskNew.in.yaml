@@ -40,6 +40,7 @@ global_controller_params:
     magic_force_threshold_nail: 100
     magic_force_threshold_sensor: 1000
     max_number_of_hits: 1
+  hitting_constraint_paramater:
     c_res: 1   
     delta_t: 0.001
     lambda_high: 500
@@ -50,6 +51,9 @@ global_controller_params:
     - 0.01
     - 0.5
     velocity_percentage: 0.9
+    Activation_height: 0
+    tau_high_mulitplier: 0
+    K: 0.5
   hitting_tasks_paramater:
     magic_BSpline_task_weight: 500
     magic_BSpline_max_duration: 2

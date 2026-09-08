@@ -177,18 +177,12 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   _vectorOrientationTask->damping(ctl._magic_vector_orientation_task_damping);
   ctl.solver().addTask(_vectorOrientationTask);
   
-  //ctl.impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(ctl.robots(), ctl.robot().robotIndex(), ctl.robot().frame(ctl.hammer_head_frame_name), ctl.nail_normal_vector_world_frame, ctl._lambda_high, ctl._lambda_low, ctl._delta_t, ctl._c_res, ctl._dt_multi, ctl.logger());
-  //ctl.solver().addConstraintSet(ctl.impulseConstraint);
   mc_rtc::log::info("Mass of the nail = {} kg", ctl.robot(ctl.nail_robot_name).mass());
   //mc_rtc::log::info("solver timestep = {} s", ctl.solver().dt());
 
   // // Add impulse constraint
-  // Eigen::Vector3d c = ctl.robot(ctl.nail_robot_name).frame(ctl.nail_frame_name).position().rotation().col(2).eval();
-  // ctl.impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(ctl.robots(), ctl.robot().robotIndex(), ctl.robot().frame(ctl.hammer_head_frame_name), normal_nail, /*ctl._lambda_high, */ctl._lambda_low, ctl._delta_t, ctl._c_res, ctl._dt_multi, ctl.logger());
-  impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(ctl.robots(), ctl.robot().robotIndex(), ctl.robot().frame(ctl.hammer_head_frame_name), ctl.nail_normal_vector_world_frame, ctl._lambda_high, ctl._lambda_low, ctl._delta_t, ctl._c_res, ctl._dt_multi, ctl.logger());
-  ctl.solver().addConstraintSet(impulseConstraint);
-  //ctl.solver().addConstraintSet(ctl.impulseConstraint);
-
+  // Eigen::Vector3d normal_nail = ctl.robot(ctl.nail_robot_name).frame(ctl.nail_frame_name).position().rotation().col(2).eval();
+  
   // Post Bspline velocity task
   // _target_velocity = ctl.nail_rot.transpose()*_magic_normal_final_velocity;
   // _target_vel = sva::MotionVecd(Eigen::Vector3d::Zero(), _target_velocity);
@@ -213,7 +207,7 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
 
   _new_mbc = ctl.robot().mbc();
 
-  ctl.effective_mass = /*ctl.*/compute_effective_mass_with_mbc(_new_mbc, ctl, ctl.nail_normal_vector_world_frame);
+  //ctl.effective_mass = /*ctl.*/compute_effective_mass_with_mbc(_new_mbc, ctl, ctl.nail_normal_vector_world_frame);
 
   previous_effective_mass = ctl.effective_mass;
 }
@@ -258,11 +252,11 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
   //                                                 ctl, 
   //                                                 ctl.nail_normal_vector_world_frame);
 
-  ctl.effective_mass = compute_effective_mass_with_mbc(_new_mbc, ctl, ctl.nail_normal_vector_world_frame);
-  ctl.effective_mass_diff = (ctl.effective_mass - previous_effective_mass)/ctl.solver().dt();
-  ctl.effective_mass_diff_diff = (ctl.effective_mass_diff - previous_eff_mass_diff)/ctl.solver().dt();
-  previous_effective_mass = ctl.effective_mass;
-  previous_eff_mass_diff = ctl.effective_mass_diff;
+  //ctl.effective_mass = compute_effective_mass_with_mbc(_new_mbc, ctl, ctl.nail_normal_vector_world_frame);
+  //ctl.effective_mass_diff = (ctl.effective_mass - previous_effective_mass)/ctl.solver().dt();
+  //ctl.effective_mass_diff_diff = (ctl.effective_mass_d - effective_mass_d)/ctl.solver().dt();
+  //previous_effective_mass = ctl.effective_mass;
+  //previous_eff_mass_diff = ctl.effective_mass_d;
 
   // ctl.hammer_tip_actual_velocity_vector = ctl.robot().frame(ctl.hammer_head_frame_name).velocity().linear();
   // ctl.hammer_tip_actual_position_vector = ctl.robot().frame(ctl.hammer_head_frame_name).position().translation();
@@ -297,6 +291,15 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
   {
     ctl.bspline_eval = Eigen::Vector6d::Zero();
     ctl.bspline_eval_norm = 0;
+  }
+  if (ctl.hammer_tip_reference_velocity_vector.dot(ctl.nail_normal_vector_world_frame)<=0 && !ctl.impulsive_constraint_flag) // activation of the impulseconstraint after distance 
+  {
+      ctl.impulsive_constraint_flag=true;
+      Eigen::VectorXd tau_high;
+      if(!ctl._Activation_height) ctl._Activation_height=_BSplineVel->eval().norm(); 
+      assert(ctl._tau_high_mulitplier<=1 && "_tau_high_mulitplier must be more than 1");
+      impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(_BSplineVel, ctl.robots(), ctl.robot().robotIndex(), ctl.robot().frame(ctl.hammer_head_frame_name), ctl.nail_normal_vector_world_frame, ctl._lambda_high, ctl._lambda_low, ctl._delta_t, ctl._c_res, ctl._dt_multi, ctl.logger(), tau_high, ctl._K, ctl._Activation_height);
+      ctl.solver().addConstraintSet(impulseConstraint);
   }
 
   Eigen::Matrix3d current_hammer_rotation = ctl.robot().frame(ctl.hammer_head_frame_name).position().rotation();
@@ -343,8 +346,8 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
 
   //log bspline point
 
-  if(ctl.flag){
-    ctl.flag=0;
+  if(ctl.text_log_flag){
+    ctl.text_log_flag=0;
     int bspline_number_of_points=1000;
     _BSplineVel->spline().samplingPoints(bspline_number_of_points);
     std::ofstream outputFile("/home/thibault/bspline.txt");
@@ -449,7 +452,7 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
 void Get_In_Position_Task::teardown(mc_control::fsm::Controller & ctl_)
 {
   HammeringTaskNew &ctl = static_cast<HammeringTaskNew &>(ctl_);
-
+  mc_rtc::log::info("test1");
   ctl.gui()->removeElement({}, ctl.stop_hammering_button_name);
   // ctl.solver().removeTask(gripper_task);
   if (ctl.bspline_active_)
@@ -462,6 +465,7 @@ void Get_In_Position_Task::teardown(mc_control::fsm::Controller & ctl_)
   }
 
   ctl.trajectories_executed++;
+  mc_rtc::log::info("test1");
 
   ctl.solver().removeTask(_vectorOrientationTask);
   ctl.solver().removeConstraintSet(impulseConstraint);
@@ -1394,7 +1398,10 @@ void Get_In_Position_Task::add_logs(mc_control::fsm::Controller & ctl_)
   {return ctl.bspline_eval_norm;});
 
   ctl.logger().addLogEntry("impact_detected",this,[&,this]()
-  {return ctl.impact_detected;});
+  {return ctl.impact_detected*100;});
+
+  ctl.logger().addLogEntry("impulsive constraint activation flag",this,[&,this]()
+  {return ctl.impulsive_constraint_flag*100;});
 
   // ctl.logger().addLogEntry("Hitting_angle", this, [&, this]()
   // {return ctl.last_hitting_angle;});

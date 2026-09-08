@@ -134,7 +134,9 @@ bool HammeringTaskNew::run()
   comparisonRobots_->robot().forwardKinematics();
   comparisonRobots_->robot().forwardVelocity();
   comparisonRobots_->robot().forwardAcceleration();
-
+  robot().forwardKinematics();
+  robot().forwardVelocity();
+  robot().forwardAcceleration();
   hammer_tip_actual_position_vector_realrobot = comparisonRobots_->robot().frame(hammer_head_frame_name).position().translation();
 
   hammer_tip_actual_position_vector = robot().frame(hammer_head_frame_name).position().translation();
@@ -174,6 +176,8 @@ bool HammeringTaskNew::run()
   P_n = Eigen::Matrix<double, 6, 6>::Zero();
   P_n.block<3,3>(3,3) = P_n_sub;
   Eigen::VectorXd  q_d = tvm::dot(robot().tvmRobot().q(),1)->value();
+  Eigen::VectorXd  q_dd = tvm::dot(robot().tvmRobot().q(),2)->value();
+
   qd=robot().encoderVelocities();
 
   qdm = Eigen::VectorXd::Zero(robot().mb().nrDof());
@@ -217,32 +221,33 @@ bool HammeringTaskNew::run()
   qdm(36) = qd.at(21);//REP
   qdm(37) = qd.at(22);//RWRY
   qdm(38) = qd.at(23);//RWRR
-  qdm(39) = qd.at(24);//RWRPM_p
+  qdm(39) = qd.at(24);//RWRP
   qdm(40) = qd.at(25);//RHDY
 
 
   effective_mass=compute_effective_mass_with_mbc(robot().mbc(),*this,nail_normal_vector_world_frame);
-  effective_mass_diff=compute_effective_mass_d_with_mbc(robot().mbc(),*this,nail_normal_vector_world_frame,effective_mass);
-  Eigen::MatrixXd effective_mass_matrix=(J_*robot().tvmRobot().H().inverse()*J_.transpose()).inverse();
-  tau_imp_true_speed=(J_.transpose()*effective_mass*P_n*J_)*(qd_previous-qdm)/_delta_t;
+  effective_mass_d=compute_effective_mass_d_with_mbc(robot().mbc(),*this,nail_normal_vector_world_frame,effective_mass);
+  tau_imp_true_speed=(J_.transpose()*effective_mass*P_n*J_)*solver().dt();
 
   Eigen::Matrix3d R = Eigen::AngleAxisd(-M_PI/4.0, Eigen::Vector3d::UnitX()).toRotationMatrix();
   tau_imp_true_force=J_Larm_sensor_.transpose()*P_n_sub*(R*robot().forceSensor("LeftHandForceSensor").force());
   tau_imp = (-1.f*(_c_res+1)/_delta_t)*J_.transpose()*effective_mass*P_n*J_*q_d;
   tau_imp_act = (-1.f*(_c_res+1)/_delta_t)*J_.transpose()*effective_mass*P_n*J_*q_d;// use just for logging
   tau_imp_derivate = -(_c_res+1)/_delta_t*((J_d.transpose()*effective_mass*P_n*J_
-  +J_.transpose()*effective_mass_diff*P_n*J_
-  +J_.transpose()*effective_mass*P_n*J_d)*qdm
-  +(J_.transpose()*effective_mass*P_n*J_)*(qdm-qd_previous)/_delta_t);
-  tau_imp_derivate_num = (tau_imp_act-tau_imp_previous)/_delta_t;
+  +J_.transpose()*effective_mass_d*P_n*J_
+  +J_.transpose()*effective_mass*P_n*J_d)*q_d
+  +(J_.transpose()*effective_mass*P_n*J_)*q_dd);
+  tau_imp_derivate_num = (tau_imp_act-tau_imp_previous)/solver().dt();
   tau_imp_previous = tau_imp_act;
   //mc_solver::TVMImpulseConstraint* High_constraint = static_cast<mc_solver::TVMImpulseConstraint *>(impulseConstraint->getConstraint().get());
   //mc_solver::TVMImpulseConstraint* Low_constraint = static_cast<mc_solver::TVMImpulseConstraint *>(impulseConstraint->getConstraint().get());
+  end_effector_velocity=linear_jacobian*q_d;
 
   tau_imp_derivate_low_limit=(robot().tvmRobot().limits().tl-tau_imp_act);
   tau_imp_derivate_high_limit=(robot().tvmRobot().limits().tu-tau_imp_act);
 
   qd_previous = qdm;
+  total_time_elapsed+=solver().dt();
   return mc_control::fsm::Controller::run(mc_solver::FeedbackType::OpenLoop); // TODO: set to closedloop
 }
 
@@ -285,8 +290,17 @@ void HammeringTaskNew::addToGUI()
                                                         _dt_multi=Impusle_constraint_param(2);
                                                         _vp=Impusle_constraint_param(3);
                                                         _lambda_high=Impusle_constraint_param(4);
-                                                        _lambda_low=Impusle_constraint_param(5);}));
+                                                        _lambda_low=Impusle_constraint_param(5);}),
+      mc_rtc::gui::ArrayInput("Linear imptorque ctR parameters (Activation heigth,tau high multiplier,K)"
+      ,[this]() { return Eigen::Vector3d{this->_Activation_height,this->_tau_high_mulitplier,this->_K};}
+      ,[this](const Eigen::Vector3d & Linear_impulsive_constraint) {_Activation_height = Linear_impulsive_constraint(0);
+                                                        _tau_high_mulitplier = Linear_impulsive_constraint(1),
+                                                        _K = Linear_impulsive_constraint(2);}));
+  //this->gui()->addPlot("Impulsive torque",mc_rtc::gui::plot::X("time", [this]() { return total_time_elapsed; }));
+  //for(size_t i = 0; i < tau_imp_act.size(); ++i){
+  //    this->gui()->addPlot("Impulsive torque",mc_rtc::gui::plot::Y(mass_maximization_active_joints[i],[this, i]() { return tau_imp_act(i); }),mc_rtc::gui::Color::Red);
 }
+
 
 double HammeringTaskNew::compute_effective_mass_with_mbc(
   rbd::MultiBodyConfig mbc, 
@@ -302,15 +316,12 @@ double HammeringTaskNew::compute_effective_mass_with_mbc(
 
   Eigen::MatrixXd full_world_frame_jacobian(6, ctl.robot().mb().nrDof());
   jac.fullJacobian(robot_mb, world_frame_jacobian, full_world_frame_jacobian);
-
   rbd::ForwardDynamics fd(robot_mb);
   fd.computeH(robot_mb, mbc);
   Eigen::MatrixXd M = fd.H();
-  
 
   Eigen::MatrixXd linear_jacobian = full_world_frame_jacobian.bottomRows(3);
   Eigen::Matrix3d LAMBDA = linear_jacobian*M.inverse()*linear_jacobian.transpose();
-  end_effector_velocity=linear_jacobian*qdm;
   return 1/(normal_vector.transpose()*LAMBDA*normal_vector);
   }
 
@@ -338,15 +349,17 @@ double HammeringTaskNew::compute_effective_mass_d_with_mbc(
 
   rbd::ForwardDynamics fd(robot_mb);
   fd.computeH(robot_mb, mbc);
+  fd.computeC(robot_mb, mbc);
+  Eigen::MatrixXd C = fd.C();
   Eigen::MatrixXd M = fd.H();
-  Eigen::MatrixXd Mi = fd.H().inverse();
-  Eigen::MatrixXd M_d_ = (ctl_.robot().tvmRobot().H()-M_p)/solver().dt();
-  M_p=fd.H();
-  Eigen::Matrix3d LAMBDA = linear_jacobian*M.inverse()*linear_jacobian.transpose();
-  end_effector_velocity=linear_jacobian*qdm;
-  return -1. * (normal_vector.transpose() * (linear_jacobiand * Mi * linear_jacobian.transpose() -
+  Eigen::MatrixXd Mi = M.inverse();
+  Eigen::MatrixXd M_d_ = (M-M_p)/solver().dt();
+  M_p=M;
+  double me_d =-1. * static_cast<double>(normal_vector.transpose() * (linear_jacobiand * Mi * linear_jacobian.transpose() -
   linear_jacobian * Mi * M_d_ * Mi * linear_jacobian.transpose() +
-  linear_jacobian * Mi * linear_jacobiand.transpose()) * normal_vector)(0,0) * effective_mass * effective_mass;
+  linear_jacobian * Mi * linear_jacobiand.transpose()) * normal_vector) * effective_mass * effective_mass;
+  if(abs(me_d)>1e5) return 0;
+  else return me_d;
   }
 
 
@@ -354,7 +367,7 @@ double HammeringTaskNew::compute_effective_mass_d_with_mbc(
 void HammeringTaskNew::load_parameters()
 {
   std::string global_controller = "global_controller_params";
-  // ------------------------ Loading timestep ---------------------------
+  // ------------------------ Loading timestep -----------mc_----------------
   std::string timestep_key = "timestep";
 
   // ------------------------ Loading gui parameters ---------------------------
@@ -390,13 +403,19 @@ void HammeringTaskNew::load_parameters()
   max_number_of_hits = config_(global_controller)(magic_values_key)("max_number_of_hits");
 
   // ------------------------ Loading constraint parameters ---------------------------
-  _c_res  = config_(global_controller)(magic_values_key)("c_res");
-  _lambda_high  = config_(global_controller)(magic_values_key)("lambda_high");
-  _lambda_low = config_(global_controller)(magic_values_key)("lambda_low");
-  _delta_t  = config_(global_controller)(magic_values_key)("delta_t");
-  _dt_multi  = config_(global_controller)(magic_values_key)("impulsive_tau_limit_multiplier");
-  _damping  = config_(global_controller)(magic_values_key)("damping");
-  _vp  = config_(global_controller)(magic_values_key)("velocity_percentage");
+
+  std::string hitting_constraint_paramater = "hitting_constraint_paramater";
+  _c_res  = config_(global_controller)(hitting_constraint_paramater)("c_res");
+  _lambda_high  = config_(global_controller)(hitting_constraint_paramater)("lambda_high");
+  _lambda_low = config_(global_controller)(hitting_constraint_paramater)("lambda_low");
+  _delta_t  = config_(global_controller)(hitting_constraint_paramater)("delta_t");
+  _dt_multi  = config_(global_controller)(hitting_constraint_paramater)("impulsive_tau_limit_multiplier");
+  _damping  = config_(global_controller)(hitting_constraint_paramater)("damping");
+  _vp  = config_(global_controller)(hitting_constraint_paramater)("velocity_percentage");
+
+  _Activation_height = config_(global_controller)(hitting_constraint_paramater)("Activation_height");;
+  _tau_high_mulitplier = config_(global_controller)(hitting_constraint_paramater)("tau_high_mulitplier");
+  _K = config_(global_controller)(hitting_constraint_paramater)("K");//that parameter correspond to a percentage. It is used to set the at what percent of the remaining distace between the target and the hammer the torque limit reaches the actual joint torque limit
 
   // ------------------------ Loading base parameters ---------------------------
   std::string robot_key = "hrp5_p";
@@ -497,10 +516,10 @@ void HammeringTaskNew::add_logs()
     {return effective_mass;});
 
     logger().addLogEntry("Effective mass derivative", this, [&, this]()
-    {return effective_mass_diff;});
+    {return effective_mass_d;});
 
     logger().addLogEntry("Effective mass double derivative", this, [&, this]()
-    {return effective_mass_diff_diff;});
+    {return effective_mass_dd;});
 
     logger().addLogEntry("Effective mass diff checker", this, [&, this]()
     {return eff_mass_diff_checker;});

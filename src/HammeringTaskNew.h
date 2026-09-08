@@ -2,6 +2,8 @@
 
 #include <mc_control/mc_controller.h>
 #include <mc_control/fsm/Controller.h>
+#include <mc_rtc/gui/plot.h>
+
 
 // BSplineTrajectoryTask and curve constraints
 #include <mc_solver/DynamicsConstraint.h>
@@ -51,8 +53,8 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
     Eigen::Matrix6d P_n; //projector nail n*n^T
     // Logs
     double effective_mass = 0.0f;
-    double effective_mass_diff = 0.0f;
-    double effective_mass_diff_diff = 0.0f;
+    double effective_mass_d = 0.0f;
+    double effective_mass_dd = 0.0f;
     double eff_mass_diff_checker = 0.f;
     Eigen::Vector3d hammer_tip_actual_velocity_vector = {0, 0, 0};
     Eigen::Vector3d hammer_tip_actual_position_vector = {0, 0, 0};
@@ -104,6 +106,9 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
     double _lambda_low;
     double _delta_t;
     double _dt_multi;
+    double _tau_high_mulitplier=0.f;
+    double _K=0;
+    double _Activation_height=0;
     std::unique_ptr<mc_solver::ImpulseConstraint> impulseConstraint;
 
 
@@ -210,14 +215,51 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
     int number_of_hits = 0;
     Eigen::VectorXd Impulsive_torque_f;
     Eigen::VectorXd Impulsive_torque_projected_f;
-    bool flag=1;
+    bool text_log_flag = false;
+    bool impulsive_constraint_flag = false;
     std::vector<double> q_val;
 
     // Robot double:
     std::shared_ptr<mc_rbdyn::Robots> comparisonRobots_;
     // Helper to access it easily
     const mc_rbdyn::BodySensor & floatingBaseSensor_ = robot().bodySensor("FloatingBase");
-
+    const std::vector<std::string> mass_maximization_active_joints = {
+        "LCY" ,
+        "LCR" ,
+        "LCP" ,
+        "LKP" ,
+        "LAP" ,
+        "LAR" ,
+        "RCY" ,
+        "RCR" ,
+        "RCP" ,
+        "RKP" ,
+        "RAP" ,
+        "RAR" ,
+        "WP"  ,
+        "WR"  ,
+        "WY"  ,
+        "HY"  ,
+        "HP"  ,
+        "LSC" ,
+        "LSP" ,
+        "LSR" ,
+        "LSY" ,
+        "LEP" ,
+        "LWRY",
+        "LWRR",
+        "LWRP",
+        "LHDY",
+        "RSC" ,
+        "RSP" ,
+        "RSR" ,
+        "RSY" ,
+        "REP" ,
+        "RWRY",
+        "RWRR",
+        "RWRP",
+        "RHDY"
+    };
     int max_number_of_hits = 50;
 
     double compute_effective_mass_with_mbc(rbd::MultiBodyConfig mbc, 
@@ -228,7 +270,7 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
                                                 mc_control::fsm::Controller & ctl_, 
                                                 const Eigen::Vector3d &normal_vector,
                                                 double effective_mass);
-
+    double total_time_elapsed =0;
   private:
 
 
