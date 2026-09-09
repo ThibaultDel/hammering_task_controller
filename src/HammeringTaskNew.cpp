@@ -1,6 +1,5 @@
 #include "HammeringTaskNew.h"
 #include <RBDyn/MultiBodyConfig.h>
-#include <mc_solver/TVMImpulseConstraint.h>
 #include <mc_solver/DynamicsConstraint.h>
 #include <mc_rtc/gui/NumberInput.h>
 #include <mc_rtc/gui/ArrayInput.h>
@@ -52,7 +51,7 @@ HammeringTaskNew::HammeringTaskNew(mc_rbdyn::RobotModulePtr rm, double dt, const
 
   // Add impulse constraint
   mc_rtc::log::info("normal nail world frame {}", nail_normal_vector_world_frame);
-  //impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(robots(), robot().robotIndex(), robot().frame(hammer_head_frame_name), nail_normal_vector_world_frame, _lambda_high, _lambda_low, _delta_t, _c_res, _dt_multi, logger());
+  impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(robots(), robot().robotIndex(), robot().frame(hammer_head_frame_name), nail_normal_vector_world_frame, _lambda_high, _lambda_low, _delta_t, _c_res, _dt_multi, logger());
   //solver().addConstraintSet(impulseConstraint);
 
   // Load default configuration from robot module
@@ -296,9 +295,12 @@ void HammeringTaskNew::addToGUI()
       ,[this](const Eigen::Vector3d & Linear_impulsive_constraint) {_Activation_height = Linear_impulsive_constraint(0);
                                                         _tau_high_mulitplier = Linear_impulsive_constraint(1),
                                                         _K = Linear_impulsive_constraint(2);}));
-  //this->gui()->addPlot("Impulsive torque",mc_rtc::gui::plot::X("time", [this]() { return total_time_elapsed; }));
-  //for(size_t i = 0; i < tau_imp_act.size(); ++i){
-  //    this->gui()->addPlot("Impulsive torque",mc_rtc::gui::plot::Y(mass_maximization_active_joints[i],[this, i]() { return tau_imp_act(i); }),mc_rtc::gui::Color::Red);
+  this->gui()->addElement({}, mc_rtc::gui::Checkbox(linear_constraint_button_name, [this]() { return linear_impulsive_torque_ctr_flag; }, [this]() { linear_impulsive_torque_ctr_flag = !linear_impulsive_torque_ctr_flag; }));
+
+      //for(size_t i = 0; i < tau_imp_act.size(); ++i){
+      //this->gui()->addPlot({"Plot"},
+      //                mc_rtc::gui::plot::X("time", [this]() { return total_time_elapsed; })),
+      //                mc_rtc::gui::plot::Y(mass_maximization_active_joints[i],[this, i]() { return tau_imp_act(i); },mc_rtc::gui::Color::Red)));}
 }
 
 
@@ -374,7 +376,9 @@ void HammeringTaskNew::load_parameters()
 
   std::string gui_key = "gui";
   std::string stop_hammering_button_name_key = "stop_hammering_button_name";
+  std::string linear_constraint_button_name_key = "linear_constraint_button_name";
   config_(global_controller)(gui_key)(stop_hammering_button_name_key, stop_hammering_button_name);
+  config_(global_controller)(gui_key)(linear_constraint_button_name_key, linear_constraint_button_name);
 
   // ------------------------ Loading quality of life parameters ---------------------------
 

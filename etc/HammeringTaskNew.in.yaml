@@ -29,6 +29,7 @@ global_controller_params:
   timestep: 0.002
   gui:
     stop_hammering_button_name: Stop hammering
+    linear_constraint_button_name: Linear constraint activation
   quality_of_life:
     bezier_curve_verbose_active: false
     jacobian_verbose_active: false

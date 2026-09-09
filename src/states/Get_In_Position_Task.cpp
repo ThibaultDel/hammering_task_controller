@@ -182,7 +182,13 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
 
   // // Add impulse constraint
   // Eigen::Vector3d normal_nail = ctl.robot(ctl.nail_robot_name).frame(ctl.nail_frame_name).position().rotation().col(2).eval();
-  
+  if(ctl.linear_impulsive_torque_ctr_flag){
+    Eigen::VectorXd tau_high = ctl.robot().tvmRobot().limits().tu*ctl._tau_high_mulitplier;
+    impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(_BSplineVel, ctl.robots(), ctl.robot().robotIndex(), ctl.robot().frame(ctl.hammer_head_frame_name), ctl.nail_normal_vector_world_frame, ctl._lambda_high, ctl._lambda_low, ctl._delta_t, ctl._c_res, ctl._dt_multi, ctl.logger(), tau_high, ctl._K, &ctl._Activation_height);
+  }
+  else{
+    impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(ctl.robots(), ctl.robot().robotIndex(), ctl.robot().frame(ctl.hammer_head_frame_name), ctl.nail_normal_vector_world_frame, ctl._lambda_high, ctl._lambda_low, ctl._delta_t, ctl._c_res, ctl._dt_multi, ctl.logger());
+  }
   // Post Bspline velocity task
   // _target_velocity = ctl.nail_rot.transpose()*_magic_normal_final_velocity;
   // _target_vel = sva::MotionVecd(Eigen::Vector3d::Zero(), _target_velocity);
@@ -295,10 +301,8 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
   if (ctl.hammer_tip_reference_velocity_vector.dot(ctl.nail_normal_vector_world_frame)<=0 && !ctl.impulsive_constraint_flag) // activation of the impulseconstraint after distance 
   {
       ctl.impulsive_constraint_flag=true;
-      Eigen::VectorXd tau_high;
       if(!ctl._Activation_height) ctl._Activation_height=_BSplineVel->eval().norm(); 
       assert(ctl._tau_high_mulitplier<=1 && "_tau_high_mulitplier must be more than 1");
-      impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(_BSplineVel, ctl.robots(), ctl.robot().robotIndex(), ctl.robot().frame(ctl.hammer_head_frame_name), ctl.nail_normal_vector_world_frame, ctl._lambda_high, ctl._lambda_low, ctl._delta_t, ctl._c_res, ctl._dt_multi, ctl.logger(), tau_high, ctl._K, ctl._Activation_height);
       ctl.solver().addConstraintSet(impulseConstraint);
   }
 
