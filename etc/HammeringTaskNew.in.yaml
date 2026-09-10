@@ -30,6 +30,8 @@ global_controller_params:
   gui:
     stop_hammering_button_name: Stop hammering
     linear_constraint_button_name: Linear constraint activation
+    plot_dt: 0.16
+    plot_joint: LWRR
   quality_of_life:
     bezier_curve_verbose_active: false
     jacobian_verbose_active: false

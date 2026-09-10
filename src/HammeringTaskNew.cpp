@@ -3,7 +3,9 @@
 #include <mc_solver/DynamicsConstraint.h>
 #include <mc_rtc/gui/NumberInput.h>
 #include <mc_rtc/gui/ArrayInput.h>
+#include <mc_rtc/gui/ComboInput.h>
 #include <mc_rtc/gui/Transform.h>
+#include <mc_rtc/gui/plot.h>
 
 HammeringTaskNew::HammeringTaskNew(mc_rbdyn::RobotModulePtr rm, double dt, const mc_rtc::Configuration & config)
 : mc_control::fsm::Controller(rm, dt, config, Backend::TVM)
@@ -51,7 +53,8 @@ HammeringTaskNew::HammeringTaskNew(mc_rbdyn::RobotModulePtr rm, double dt, const
 
   // Add impulse constraint
   mc_rtc::log::info("normal nail world frame {}", nail_normal_vector_world_frame);
-  impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(robots(), robot().robotIndex(), robot().frame(hammer_head_frame_name), nail_normal_vector_world_frame, _lambda_high, _lambda_low, _delta_t, _c_res, _dt_multi, logger());
+  // impulseConstraint is initialized and added to solver in Get_In_Position_Task
+  // impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(robots(), robot().robotIndex(), robot().frame(hammer_head_frame_name), nail_normal_vector_world_frame, _lambda_high, _lambda_low, _delta_t, _c_res, _dt_multi, logger());
   //solver().addConstraintSet(impulseConstraint);
 
   // Load default configuration from robot module
@@ -102,6 +105,7 @@ HammeringTaskNew::HammeringTaskNew(mc_rbdyn::RobotModulePtr rm, double dt, const
 
   qd_previous=Eigen::VectorXd::Zero(robot().mb().nrDof());
   M_p=robot().tvmRobot().H();
+  tau_imp_act = Eigen::VectorXd::Zero(robot().mb().nrDof());
   addToGUI();
   mc_rtc::log::success("HammeringTaskNew init done ");
 }
@@ -246,12 +250,25 @@ bool HammeringTaskNew::run()
   tau_imp_derivate_high_limit=(robot().tvmRobot().limits().tu-tau_imp_act);
 
   qd_previous = qdm;
-  total_time_elapsed+=solver().dt();
+  total_time_elapsed += solver().dt();
+  plot_timer_ += solver().dt();
+  if(plot_timer_ >= plot_dt_)
+  {
+    should_plot_tick_ = true;
+    plot_timer_ = 0.0;
+  }
+  else
+  {
+    should_plot_tick_ = false;
+  }
   return mc_control::fsm::Controller::run(mc_solver::FeedbackType::OpenLoop); // TODO: set to closedloop
 }
 
 void HammeringTaskNew::reset(const mc_control::ControllerResetData & reset_data)
 {
+  total_time_elapsed = 0.0;
+  plot_timer_ = 0.0;
+  should_plot_tick_ = false;
   // auto robots = mc_rbdyn::loadRobot(robot().module());
   comparisonRobots_ = mc_rbdyn::loadRobot(robot().module());
   // comparisonRobots_ = std::make_shared<mc_rbdyn::Robot>(robots->robot(0).module(), robots->robot(0).name());
@@ -295,12 +312,140 @@ void HammeringTaskNew::addToGUI()
       ,[this](const Eigen::Vector3d & Linear_impulsive_constraint) {_Activation_height = Linear_impulsive_constraint(0);
                                                         _tau_high_mulitplier = Linear_impulsive_constraint(1),
                                                         _K = Linear_impulsive_constraint(2);}));
-  this->gui()->addElement({}, mc_rtc::gui::Checkbox(linear_constraint_button_name, [this]() { return linear_impulsive_torque_ctr_flag; }, [this]() { linear_impulsive_torque_ctr_flag = !linear_impulsive_torque_ctr_flag; }));
+  this->gui()->addElement({},
+    mc_rtc::gui::Checkbox(linear_constraint_button_name, [this]() { return linear_impulsive_torque_ctr_flag; }, [this]() { linear_impulsive_torque_ctr_flag = !linear_impulsive_torque_ctr_flag; }),
+    mc_rtc::gui::ComboInput("Plot Joint", mass_maximization_active_joints,
+      [this]() { return selected_plot_joint_; },
+      [this](const std::string & j) { selected_plot_joint_ = j; }),
+    mc_rtc::gui::NumberInput("Live plot interval [s]",
+      [this]() { return plot_dt_; },
+      [this](double dt) { plot_dt_ = std::max(0.01, dt); })
+  );
 
-      //for(size_t i = 0; i < tau_imp_act.size(); ++i){
-      //this->gui()->addPlot({"Plot"},
-      //                mc_rtc::gui::plot::X("time", [this]() { return total_time_elapsed; })),
-      //                mc_rtc::gui::plot::Y(mass_maximization_active_joints[i],[this, i]() { return tau_imp_act(i); },mc_rtc::gui::Color::Red)));}
+  using Color = mc_rtc::gui::Color;
+  using Style = mc_rtc::gui::plot::Style;
+  using AxisConfig = mc_rtc::gui::plot::AxisConfiguration;
+
+  auto get_dof = [this](const std::string & jname) -> int {
+    for(size_t i = 0; i < mass_maximization_active_joints.size(); ++i)
+    {
+      if(mass_maximization_active_joints[i] == jname)
+      {
+        return static_cast<int>(i) + 6;
+      }
+    }
+    return 29; // default to LWRR
+  };
+
+  auto get_upper = [this](int dof) -> double {
+    if(impulseConstraint && impulseConstraint->TorqueHigherLimit().size() > dof)
+    {
+      return impulseConstraint->TorqueHigherLimit()(dof);
+    }
+    return robot().tvmRobot().limits().tu(dof) * _dt_multi;
+  };
+
+  auto get_lower = [this](int dof) -> double {
+    if(impulseConstraint && impulseConstraint->TorqueLowerLimit().size() > dof)
+    {
+      return impulseConstraint->TorqueLowerLimit()(dof);
+    }
+    return robot().tvmRobot().limits().tl(dof) * _dt_multi;
+  };
+
+  auto get_out = [this](int dof) -> double {
+    if(tau_imp_act.size() > dof)
+    {
+      return tau_imp_act(dof);
+    }
+    return 0.0;
+  };
+
+  auto make_curve = [this](const std::string & label, auto get_val, Color color, Style style) {
+    return mc_rtc::gui::plot::XYChunk(
+      label,
+      [this, get_val](std::vector<std::array<double, 2>> & cache) {
+        if(should_plot_tick_)
+        {
+          cache.push_back({total_time_elapsed, get_val()});
+        }
+      },
+      color,
+      style
+    );
+  };
+
+  int dof_lwrr = get_dof("LWRR");
+  int dof_lwrp = get_dof("LWRP");
+  int dof_lwry = get_dof("LWRY");
+
+  int dof_lep = get_dof("LEP");
+  int dof_lsp = get_dof("LSP");
+  int dof_lsr = get_dof("LSR");
+
+  AxisConfig xAxis("t [s]");
+  AxisConfig yAxis("Torque [N.m]");
+
+  // Left Wrist (3 independent joint plots)
+  this->gui()->addXYPlot(
+    "Left Wrist: LWRR",
+    xAxis, yAxis,
+    make_curve("Output", [this, dof_lwrr, get_out]() { return get_out(dof_lwrr); }, Color::Red, Style::Solid),
+    make_curve("Upper Limit", [this, dof_lwrr, get_upper]() { return get_upper(dof_lwrr); }, Color::Red, Style::Dotted),
+    make_curve("Lower Limit", [this, dof_lwrr, get_lower]() { return get_lower(dof_lwrr); }, Color::Red, Style::Dotted)
+  );
+  this->gui()->addXYPlot(
+    "Left Wrist: LWRP",
+    xAxis, yAxis,
+    make_curve("Output", [this, dof_lwrp, get_out]() { return get_out(dof_lwrp); }, Color::Blue, Style::Solid),
+    make_curve("Upper Limit", [this, dof_lwrp, get_upper]() { return get_upper(dof_lwrp); }, Color::Blue, Style::Dotted),
+    make_curve("Lower Limit", [this, dof_lwrp, get_lower]() { return get_lower(dof_lwrp); }, Color::Blue, Style::Dotted)
+  );
+  this->gui()->addXYPlot(
+    "Left Wrist: LWRY",
+    xAxis, yAxis,
+    make_curve("Output", [this, dof_lwry, get_out]() { return get_out(dof_lwry); }, Color::Green, Style::Solid),
+    make_curve("Upper Limit", [this, dof_lwry, get_upper]() { return get_upper(dof_lwry); }, Color::Green, Style::Dotted),
+    make_curve("Lower Limit", [this, dof_lwry, get_lower]() { return get_lower(dof_lwry); }, Color::Green, Style::Dotted)
+  );
+
+  // Left Arm (3 independent joint plots)
+  this->gui()->addXYPlot(
+    "Left Arm: LEP",
+    xAxis, yAxis,
+    make_curve("Output", [this, dof_lep, get_out]() { return get_out(dof_lep); }, Color::Green, Style::Solid),
+    make_curve("Upper Limit", [this, dof_lep, get_upper]() { return get_upper(dof_lep); }, Color::Green, Style::Dotted),
+    make_curve("Lower Limit", [this, dof_lep, get_lower]() { return get_lower(dof_lep); }, Color::Green, Style::Dotted)
+  );
+  this->gui()->addXYPlot(
+    "Left Arm: LSP",
+    xAxis, yAxis,
+    make_curve("Output", [this, dof_lsp, get_out]() { return get_out(dof_lsp); }, Color::Magenta, Style::Solid),
+    make_curve("Upper Limit", [this, dof_lsp, get_upper]() { return get_upper(dof_lsp); }, Color::Magenta, Style::Dotted),
+    make_curve("Lower Limit", [this, dof_lsp, get_lower]() { return get_lower(dof_lsp); }, Color::Magenta, Style::Dotted)
+  );
+  this->gui()->addXYPlot(
+    "Left Arm: LSR",
+    xAxis, yAxis,
+    make_curve("Output", [this, dof_lsr, get_out]() { return get_out(dof_lsr); }, Color::Cyan, Style::Solid),
+    make_curve("Upper Limit", [this, dof_lsr, get_upper]() { return get_upper(dof_lsr); }, Color::Cyan, Style::Dotted),
+    make_curve("Lower Limit", [this, dof_lsr, get_lower]() { return get_lower(dof_lsr); }, Color::Cyan, Style::Dotted)
+  );
+
+  // Detailed Inspector for any selected joint
+  this->gui()->addXYPlot(
+    "Joint Details",
+    xAxis, yAxis,
+    make_curve("Predicted Output", [this, get_dof, get_out]() {
+      return get_out(get_dof(selected_plot_joint_));
+    }, Color::Green, Style::Solid),
+    make_curve("Upper Limit", [this, get_dof, get_upper]() {
+      return get_upper(get_dof(selected_plot_joint_));
+    }, Color::Red, Style::Dotted),
+    make_curve("Lower Limit", [this, get_dof, get_lower]() {
+      return get_lower(get_dof(selected_plot_joint_));
+    }, Color::Blue, Style::Dotted)
+  );
 }
 
 
@@ -379,6 +524,14 @@ void HammeringTaskNew::load_parameters()
   std::string linear_constraint_button_name_key = "linear_constraint_button_name";
   config_(global_controller)(gui_key)(stop_hammering_button_name_key, stop_hammering_button_name);
   config_(global_controller)(gui_key)(linear_constraint_button_name_key, linear_constraint_button_name);
+  if(config_(global_controller)(gui_key).has("plot_dt"))
+  {
+    config_(global_controller)(gui_key)("plot_dt", plot_dt_);
+  }
+  if(config_(global_controller)(gui_key).has("plot_joint"))
+  {
+    config_(global_controller)(gui_key)("plot_joint", selected_plot_joint_);
+  }
 
   // ------------------------ Loading quality of life parameters ---------------------------
 

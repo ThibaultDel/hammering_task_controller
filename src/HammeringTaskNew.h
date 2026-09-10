@@ -262,6 +262,7 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
         "RWRP",
         "RHDY"
     };
+    std::string selected_plot_joint_ = "LWRR";
     int max_number_of_hits = 50;
 
     double compute_effective_mass_with_mbc(rbd::MultiBodyConfig mbc, 
@@ -272,7 +273,10 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
                                                 mc_control::fsm::Controller & ctl_, 
                                                 const Eigen::Vector3d &normal_vector,
                                                 double effective_mass);
-    double total_time_elapsed =0;
+    double total_time_elapsed = 0;
+    double plot_timer_ = 0.0;
+    double plot_dt_ = 0.16; // Live plot update interval [s], loaded from YAML (default 0.16s / ~6 Hz)
+    bool should_plot_tick_ = false;
   private:
 
 
