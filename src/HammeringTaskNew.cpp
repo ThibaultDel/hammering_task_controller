@@ -106,6 +106,9 @@ HammeringTaskNew::HammeringTaskNew(mc_rbdyn::RobotModulePtr rm, double dt, const
   qd_previous=Eigen::VectorXd::Zero(robot().mb().nrDof());
   M_p=robot().tvmRobot().H();
   tau_imp_act = Eigen::VectorXd::Zero(robot().mb().nrDof());
+  tau_imp_derivate = Eigen::VectorXd::Zero(robot().mb().nrDof());
+  tau_imp_derivate_low_limit = Eigen::VectorXd::Zero(robot().mb().nrDof());
+  tau_imp_derivate_high_limit = Eigen::VectorXd::Zero(robot().mb().nrDof());
   addToGUI();
   mc_rtc::log::success("HammeringTaskNew init done ");
 }
@@ -327,13 +330,7 @@ void HammeringTaskNew::addToGUI()
                                                         _tau_high_mulitplier = Linear_impulsive_constraint(1),
                                                         _K = Linear_impulsive_constraint(2);}));
   this->gui()->addElement({},
-    mc_rtc::gui::Checkbox(linear_constraint_button_name, [this]() { return linear_impulsive_torque_ctr_flag; }, [this]() { linear_impulsive_torque_ctr_flag = !linear_impulsive_torque_ctr_flag; }),
-    mc_rtc::gui::ComboInput("Plot Joint", mass_maximization_active_joints,
-      [this]() { return selected_plot_joint_; },
-      [this](const std::string & j) { selected_plot_joint_ = j; }),
-    mc_rtc::gui::NumberInput("Live plot interval [s]",
-      [this]() { return plot_dt_; },
-      [this](double dt) { plot_dt_ = std::max(0.01, dt); })
+    mc_rtc::gui::Checkbox(linear_constraint_button_name, [this]() { return linear_impulsive_torque_ctr_flag; }, [this]() { linear_impulsive_torque_ctr_flag = !linear_impulsive_torque_ctr_flag; })
   );
 
   using Color = mc_rtc::gui::Color;
@@ -400,7 +397,55 @@ void HammeringTaskNew::addToGUI()
   AxisConfig xAxis("t [s]");
   AxisConfig yAxis("Torque [N.m]");
 
-  // Left Wrist (3 independent joint plots)
+  // GUI controls for Plots tab
+  this->gui()->addElement({"Plots"},
+    mc_rtc::gui::ComboInput("Selected Joint to plot", mass_maximization_active_joints,
+      [this]() { return selected_plot_joint_; },
+      [this](const std::string & j) { selected_plot_joint_ = j; }),
+    mc_rtc::gui::ComboInput("Plot Quantity", plot_modes_,
+      [this]() { return selected_plot_mode_; },
+      [this](const std::string & m) { selected_plot_mode_ = m; }),
+    mc_rtc::gui::NumberInput("Live plot interval [s]",
+      [this]() { return plot_dt_; },
+      [this](double dt) { plot_dt_ = std::max(0.01, dt); })
+  );
+
+  auto get_selected_out = [this, get_out](int dof) -> double {
+    if(selected_plot_mode_ == "Derivative of Impulsive Torque")
+    {
+      if(tau_imp_derivate.size() > dof)
+      {
+        return tau_imp_derivate(dof);
+      }
+      return 0.0;
+    }
+    return get_out(dof);
+  };
+
+  auto get_selected_upper = [this, get_upper](int dof) -> double {
+    if(selected_plot_mode_ == "Derivative of Impulsive Torque")
+    {
+      if(tau_imp_derivate_high_limit.size() > dof)
+      {
+        return tau_imp_derivate_high_limit(dof);
+      }
+      return 0.0;
+    }
+    return get_upper(dof);
+  };
+
+  auto get_selected_lower = [this, get_lower](int dof) -> double {
+    if(selected_plot_mode_ == "Derivative of Impulsive Torque")
+    {
+      if(tau_imp_derivate_low_limit.size() > dof)
+      {
+        return tau_imp_derivate_low_limit(dof);
+      }
+      return 0.0;
+    }
+    return get_lower(dof);
+  };
+
   this->gui()->addXYPlot(
     "Left Wrist: LWRR",
     xAxis, yAxis,
@@ -448,16 +493,16 @@ void HammeringTaskNew::addToGUI()
 
   // Detailed Inspector for any selected joint
   this->gui()->addXYPlot(
-    "Joint Details",
+    "Selected Joint plot",
     xAxis, yAxis,
-    make_curve("Predicted Output", [this, get_dof, get_out]() {
-      return get_out(get_dof(selected_plot_joint_));
+    make_curve("Predicted Output", [this, get_dof, get_selected_out]() {
+      return get_selected_out(get_dof(selected_plot_joint_));
     }, Color::Green, Style::Solid),
-    make_curve("Upper Limit", [this, get_dof, get_upper]() {
-      return get_upper(get_dof(selected_plot_joint_));
+    make_curve("Upper Limit", [this, get_dof, get_selected_upper]() {
+      return get_selected_upper(get_dof(selected_plot_joint_));
     }, Color::Red, Style::Dotted),
-    make_curve("Lower Limit", [this, get_dof, get_lower]() {
-      return get_lower(get_dof(selected_plot_joint_));
+    make_curve("Lower Limit", [this, get_dof, get_selected_lower]() {
+      return get_selected_lower(get_dof(selected_plot_joint_));
     }, Color::Blue, Style::Dotted)
   );
 }
@@ -545,6 +590,10 @@ void HammeringTaskNew::load_parameters()
   if(config_(global_controller)(gui_key).has("plot_joint"))
   {
     config_(global_controller)(gui_key)("plot_joint", selected_plot_joint_);
+  }
+  if(config_(global_controller)(gui_key).has("plot_mode"))
+  {
+    config_(global_controller)(gui_key)("plot_mode", selected_plot_mode_);
   }
 
   // ------------------------ Loading quality of life parameters ---------------------------

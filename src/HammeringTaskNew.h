@@ -178,7 +178,7 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
     std::string stop_hammering_button_name = "undefined";
     std::string linear_constraint_button_name = "undefined";
 
-    bool linear_impulsive_torque_ctr_flag=false;
+    bool linear_impulsive_torque_ctr_flag=true;
     // Minimum force to detect an impact on the nail
     double magic_force_threshold_nail = 1;
     double magic_force_threshold_sensor = 1;
@@ -263,6 +263,8 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
         "RHDY"
     };
     std::string selected_plot_joint_ = "LWRR";
+    std::string selected_plot_mode_ = "Impulsive Torque";
+    const std::vector<std::string> plot_modes_ = {"Impulsive Torque", "Derivative of Impulsive Torque"};
     int max_number_of_hits = 50;
 
     double compute_effective_mass_with_mbc(rbd::MultiBodyConfig mbc, 
