@@ -18,6 +18,11 @@ void Get_In_Position_Task::configure(const mc_rtc::Configuration & config)
 void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
 {
   HammeringTaskNew &ctl = static_cast<HammeringTaskNew &>(ctl_);
+  stop = false;
+  _total_time_elapsed = 0.0f;
+  ctl.impulsive_constraint_flag = false;
+  ctl.impact_detected = false;
+  ctl._Activation_height = 0.0;
   load_params();
   add_logs(ctl_);
  
@@ -304,7 +309,7 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
   {
       ctl.impulsive_constraint_flag=true;
       if(!ctl._Activation_height) ctl._Activation_height=(ctl.robot().frame("Hammer_head").position().translation() - _BSplineVel->target().translation()).norm(); 
-      assert(ctl._tau_high_mulitplier<=1 && "_tau_high_mulitplier must be more than 1");
+      assert(ctl._tau_high_mulitplier>=1 && "_tau_high_mulitplier must be at least 1");
       ctl.solver().addConstraintSet(ctl.impulseConstraint);
   }
 
@@ -458,23 +463,32 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
 void Get_In_Position_Task::teardown(mc_control::fsm::Controller & ctl_)
 {
   HammeringTaskNew &ctl = static_cast<HammeringTaskNew &>(ctl_);
-  mc_rtc::log::info("test1");
   ctl.gui()->removeElement({}, ctl.stop_hammering_button_name);
-  // ctl.solver().removeTask(gripper_task);
-  if (ctl.bspline_active_)
+  if (_BSplineVel)
   {
     ctl.solver().removeTask(_BSplineVel);
-    ctl.bspline_active_ = false;
-  } else
+    _BSplineVel.reset();
+  }
+  if (_transform_task)
   {
     ctl.solver().removeTask(_transform_task);
+    _transform_task.reset();
   }
+  ctl.bspline_active_ = false;
 
   ctl.trajectories_executed++;
-  mc_rtc::log::info("test1");
 
-  ctl.solver().removeTask(_vectorOrientationTask);
-  ctl.solver().removeConstraintSet(ctl.impulseConstraint);
+  if (_vectorOrientationTask)
+  {
+    ctl.solver().removeTask(_vectorOrientationTask);
+    _vectorOrientationTask.reset();
+  }
+  if (ctl.impulseConstraint)
+  {
+    ctl.solver().removeConstraintSet(*ctl.impulseConstraint);
+    ctl.impulseConstraint.reset();
+  }
+  ctl.impulsive_constraint_flag = false;
   ctl.getPostureTask(ctl.robot().name())->refAccel(Eigen::VectorXd::Zero(35));
   rm_logs(ctl_);
   mc_rtc::log::info("Tasks cleared successfully");
@@ -1435,10 +1449,12 @@ void Get_In_Position_Task::rm_logs(mc_control::fsm::Controller & ctl_)
   ctl.logger().removeLogEntry("GetInPoseTask_Hammer tip reference bezier position [m]");
   ctl.logger().removeLogEntry("GetInPoseTask_Bspline tracking error [m]");
   ctl.logger().removeLogEntry("GetInPoseTask_Vector orientation error");
+  ctl.logger().removeLogEntry("GetInPoseTask_Bspline eval tracking");
   ctl.logger().removeLogEntry("GetInPoseTask_Bspline eval");
   ctl.logger().removeLogEntry("GetInPoseTask_Bspline eval norm");
   ctl.logger().removeLogEntry("GetInPoseTask_angle eval");
   ctl.logger().removeLogEntry("impact_detected");
+  ctl.logger().removeLogEntry("impulsive constraint activation flag");
 
 }
 

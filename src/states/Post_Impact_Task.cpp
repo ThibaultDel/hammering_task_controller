@@ -104,7 +104,11 @@ void Post_Impact_Task::teardown(mc_control::fsm::Controller & ctl_)
 {
     auto & ctl = static_cast<HammeringTaskNew &>(ctl_);
     // ctl.solver().removeTask(_postureTask);
-    ctl.solver().removeTask(_transform_task);
+    if(_transform_task)
+    {
+        ctl.solver().removeTask(_transform_task);
+        _transform_task.reset();
+    }
 }
 
 void Post_Impact_Task::load_parameters()

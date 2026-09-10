@@ -13,8 +13,17 @@ void HammeringTaskNew_Initial::start(mc_control::fsm::Controller & ctl_)
 {
   auto & ctl = static_cast<HammeringTaskNew &>(ctl_);
 
+  _positionning_hammer_clicked = false;
+  ctl.impulsive_constraint_flag = false;
+
   // Creates a button to start the movement
-  ctl.gui()->addElement({}, mc_rtc::gui::Button("Start hammering", [this]() { _positionning_hammer_clicked = true; }));
+  ctl.gui()->addElement({}, mc_rtc::gui::Button("Start hammering", [this, &ctl]() {
+    _positionning_hammer_clicked = true;
+    if(ctl.number_of_hits >= ctl.max_number_of_hits)
+    {
+      ctl.number_of_hits = 0;
+    }
+  }));
   // ctl.getPostureTask(ctl_.robot().name())->stiffness(100);
   // ctl.getPostureTask(ctl_.robot().name())->resetJointsSelector(ctl_.solver());
   // mc_rtc::log::info("posture dimweights are: {}",ctl.getPostureTask(ctl_.robot().name())->dimWeight());

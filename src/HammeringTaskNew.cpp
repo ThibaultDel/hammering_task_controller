@@ -269,10 +269,24 @@ void HammeringTaskNew::reset(const mc_control::ControllerResetData & reset_data)
   total_time_elapsed = 0.0;
   plot_timer_ = 0.0;
   should_plot_tick_ = false;
-  // auto robots = mc_rbdyn::loadRobot(robot().module());
+  number_of_hits = 0;
+  trajectories_executed = 0;
+  impulsive_constraint_flag = false;
+  force_felt = false;
+  impact_detected = false;
+  bspline_active_ = false;
+  _Activation_height = 0.0;
+
+  if(impulseConstraint)
+  {
+    solver().removeConstraintSet(*impulseConstraint);
+    impulseConstraint.reset();
+  }
+
   comparisonRobots_ = mc_rbdyn::loadRobot(robot().module());
-  // comparisonRobots_ = std::make_shared<mc_rbdyn::Robot>(robots->robot(0).module(), robots->robot(0).name());
   mc_control::fsm::Controller::reset(reset_data);
+
+  this->resume("Hammer::HammeringFSM");
 }
 
 void HammeringTaskNew::addToGUI()
