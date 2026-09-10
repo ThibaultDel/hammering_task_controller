@@ -185,9 +185,11 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   if(ctl.linear_impulsive_torque_ctr_flag){
     Eigen::VectorXd tau_high = ctl.robot().tvmRobot().limits().tu*ctl._tau_high_mulitplier;
     impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(_BSplineVel, ctl.robots(), ctl.robot().robotIndex(), ctl.robot().frame(ctl.hammer_head_frame_name), ctl.nail_normal_vector_world_frame, ctl._lambda_high, ctl._lambda_low, ctl._delta_t, ctl._c_res, ctl._dt_multi, ctl.logger(), tau_high, ctl._K, &ctl._Activation_height);
+    mc_rtc::log::info("linear impulsive torque constraint activated");
   }
   else{
     impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(ctl.robots(), ctl.robot().robotIndex(), ctl.robot().frame(ctl.hammer_head_frame_name), ctl.nail_normal_vector_world_frame, ctl._lambda_high, ctl._lambda_low, ctl._delta_t, ctl._c_res, ctl._dt_multi, ctl.logger());
+    mc_rtc::log::info("impulsive torque constraint activated");
   }
   // Post Bspline velocity task
   // _target_velocity = ctl.nail_rot.transpose()*_magic_normal_final_velocity;
@@ -301,7 +303,7 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
   if (ctl.hammer_tip_reference_velocity_vector.dot(ctl.nail_normal_vector_world_frame)<=0 && !ctl.impulsive_constraint_flag) // activation of the impulseconstraint after distance 
   {
       ctl.impulsive_constraint_flag=true;
-      if(!ctl._Activation_height) ctl._Activation_height=_BSplineVel->eval().norm(); 
+      if(!ctl._Activation_height) ctl._Activation_height=(ctl.robot().frame("Hammer_head").position().translation() - _BSplineVel->target().translation()).norm(); 
       assert(ctl._tau_high_mulitplier<=1 && "_tau_high_mulitplier must be more than 1");
       ctl.solver().addConstraintSet(impulseConstraint);
   }
@@ -1396,8 +1398,12 @@ void Get_In_Position_Task::add_logs(mc_control::fsm::Controller & ctl_)
   ctl.logger().addLogEntry("GetInPoseTask_Vector orientation error", this, [&, this]()
   {return ctl.vector_orientation_error*180/M_PI;});
 
-  ctl.logger().addLogEntry("GetInPoseTask_Bspline eval", this, [&, this]()
+  ctl.logger().addLogEntry("GetInPoseTask_Bspline eval tracking", this, [&, this]()
   {return ctl.bspline_eval;});
+
+  ctl.logger().addLogEntry("GetInPoseTask_Bspline eval", this, [&, this]()
+  {return _BSplineVel->eval().norm();});
+
   ctl.logger().addLogEntry("GetInPoseTask_Bspline eval norm", this, [&, this]()
   {return ctl.bspline_eval_norm;});
 
