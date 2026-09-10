@@ -55,7 +55,7 @@ global_controller_params:
     - 0.5
     velocity_percentage: 0.9
     Activation_height: 0
-    tau_high_mulitplier: 0
+    tau_high_mulitplier: 2
     K: 0.5
   hitting_tasks_paramater:
     magic_BSpline_task_weight: 500
