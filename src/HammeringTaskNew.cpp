@@ -249,13 +249,19 @@ bool HammeringTaskNew::run()
   //mc_solver::TVMImpulseConstraint* Low_constraint = static_cast<mc_solver::TVMImpulseConstraint *>(impulseConstraint->getConstraint().get());
   end_effector_velocity=linear_jacobian*q_d;
   if (impulseConstraint) {
-    if((robot().frame("Hammer_head").position().translation() - robot(nail_robot_name).frame(nail_frame_name).position().translation()).norm() < _Activation_height){
-      tau_imp_derivate_low_limit=(robot().tvmRobot().limits().tl - tau_imp_act) * impulseConstraint->EffectiveLambda() - robot().tvmRobot().limits().tl * (1 - _tau_high_mulitplier)/ (_Activation_height - _Activation_height* _K) * linear_jacobian * q_d;
-      tau_imp_derivate_high_limit=(robot().tvmRobot().limits().tu - tau_imp_act) * impulseConstraint->EffectiveLambda() - robot().tvmRobot().limits().tu * (1 - _tau_high_mulitplier)/ (_Activation_height - _Activation_height* _K) * linear_jacobian * q_d;
+    Eigen::Vector3d diff_pos = robot().frame("Hammer_head").position().translation() - robot(nail_robot_name).frame(nail_frame_name).position().translation();
+    double current_pos = diff_pos.norm();
+    const auto & torque_lower = (impulseConstraint->TorqueLowerLimit().size() == robot().mb().nrDof()) ? impulseConstraint->TorqueLowerLimit() : robot().tvmRobot().limits().tl;
+    const auto & torque_higher = (impulseConstraint->TorqueHigherLimit().size() == robot().mb().nrDof()) ? impulseConstraint->TorqueHigherLimit() : robot().tvmRobot().limits().tu;
+    if(_Activation_height * _K < current_pos && current_pos < _Activation_height){
+      double d_dot = (current_pos > 1e-6) ? (diff_pos.dot(end_effector_velocity) / current_pos) : 0.0;
+      double d_limit_rate = (1.0 - _tau_high_mulitplier) / (_Activation_height - _Activation_height * _K) * d_dot;
+      tau_imp_derivate_low_limit  = (torque_lower - tau_imp_act).cwiseProduct(impulseConstraint->EffectiveLambda()) - robot().tvmRobot().limits().tl * d_limit_rate;
+      tau_imp_derivate_high_limit = (torque_higher - tau_imp_act).cwiseProduct(impulseConstraint->EffectiveLambda()) - robot().tvmRobot().limits().tu * d_limit_rate;
     }
     else{
-      tau_imp_derivate_low_limit=(robot().tvmRobot().limits().tl - tau_imp_act) * impulseConstraint->EffectiveLambda() ;
-      tau_imp_derivate_high_limit=(robot().tvmRobot().limits().tu - tau_imp_act) * impulseConstraint->EffectiveLambda() ;
+      tau_imp_derivate_low_limit  = (torque_lower - tau_imp_act).cwiseProduct(impulseConstraint->EffectiveLambda());
+      tau_imp_derivate_high_limit = (torque_higher - tau_imp_act).cwiseProduct(impulseConstraint->EffectiveLambda());
     }
   }
   qd_previous = qdm;
@@ -709,10 +715,18 @@ void HammeringTaskNew::add_logs()
     {return tau_imp_derivate_high_limit;});
 
     logger().addLogEntry("ImpulsiveTorquePredicted_torque_limit_high", this, [&,this]()
-    {return robot().tvmRobot().limits().tu;});
+    {
+      if (impulseConstraint && impulseConstraint->TorqueHigherLimit().size() > 0)
+        return impulseConstraint->TorqueHigherLimit();
+      return robot().tvmRobot().limits().tu;
+    });
 
     logger().addLogEntry("ImpulsiveTorquePredicted_torque_limit_low", this, [&,this]()
-    {return robot().tvmRobot().limits().tl;});
+    {
+      if (impulseConstraint && impulseConstraint->TorqueLowerLimit().size() > 0)
+        return impulseConstraint->TorqueLowerLimit();
+      return robot().tvmRobot().limits().tl;
+    });
 
     logger().addLogEntry("ImpulsiveTorquesimulated_speed",this,[&,this]
     {return tau_imp_true_speed;});
