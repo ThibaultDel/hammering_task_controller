@@ -248,10 +248,16 @@ bool HammeringTaskNew::run()
   //mc_solver::TVMImpulseConstraint* High_constraint = static_cast<mc_solver::TVMImpulseConstraint *>(impulseConstraint->getConstraint().get());
   //mc_solver::TVMImpulseConstraint* Low_constraint = static_cast<mc_solver::TVMImpulseConstraint *>(impulseConstraint->getConstraint().get());
   end_effector_velocity=linear_jacobian*q_d;
-
-  tau_imp_derivate_low_limit=(robot().tvmRobot().limits().tl-tau_imp_act);
-  tau_imp_derivate_high_limit=(robot().tvmRobot().limits().tu-tau_imp_act);
-
+  if (impulseConstraint) {
+    if((robot().frame("Hammer_head").position().translation() - robot(nail_robot_name).frame(nail_frame_name).position().translation()).norm() < _Activation_height){
+      tau_imp_derivate_low_limit=(robot().tvmRobot().limits().tl - tau_imp_act) * impulseConstraint->EffectiveLambda() - robot().tvmRobot().limits().tl * (1 - _tau_high_mulitplier)/ (_Activation_height - _Activation_height* _K) * linear_jacobian * q_d;
+      tau_imp_derivate_high_limit=(robot().tvmRobot().limits().tu - tau_imp_act) * impulseConstraint->EffectiveLambda() - robot().tvmRobot().limits().tu * (1 - _tau_high_mulitplier)/ (_Activation_height - _Activation_height* _K) * linear_jacobian * q_d;
+    }
+    else{
+      tau_imp_derivate_low_limit=(robot().tvmRobot().limits().tl - tau_imp_act) * impulseConstraint->EffectiveLambda() ;
+      tau_imp_derivate_high_limit=(robot().tvmRobot().limits().tu - tau_imp_act) * impulseConstraint->EffectiveLambda() ;
+    }
+  }
   qd_previous = qdm;
   total_time_elapsed += solver().dt();
   plot_timer_ += solver().dt();
@@ -701,6 +707,12 @@ void HammeringTaskNew::add_logs()
 
     logger().addLogEntry("ImpulsiveTorquePredicted_high_limit_derivative", this, [&,this]()
     {return tau_imp_derivate_high_limit;});
+
+    logger().addLogEntry("ImpulsiveTorquePredicted_torque_limit_high", this, [&,this]()
+    {return robot().tvmRobot().limits().tu;});
+
+    logger().addLogEntry("ImpulsiveTorquePredicted_torque_limit_low", this, [&,this]()
+    {return robot().tvmRobot().limits().tl;});
 
     logger().addLogEntry("ImpulsiveTorquesimulated_speed",this,[&,this]
     {return tau_imp_true_speed;});

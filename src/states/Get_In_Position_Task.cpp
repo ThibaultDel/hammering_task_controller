@@ -188,8 +188,7 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   // // Add impulse constraint
   // Eigen::Vector3d normal_nail = ctl.robot(ctl.nail_robot_name).frame(ctl.nail_frame_name).position().rotation().col(2).eval();
   if(ctl.linear_impulsive_torque_ctr_flag){
-    Eigen::VectorXd tau_high = ctl.robot().tvmRobot().limits().tu*ctl._tau_high_mulitplier;
-    ctl.impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(_BSplineVel, ctl.robots(), ctl.robot().robotIndex(), ctl.robot().frame(ctl.hammer_head_frame_name), ctl.nail_normal_vector_world_frame, ctl._lambda_high, ctl._lambda_low, ctl._delta_t, ctl._c_res, ctl._dt_multi, ctl.logger(), tau_high, ctl._K, &ctl._Activation_height);
+    ctl.impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(_BSplineVel, ctl.robots(), ctl.robot().robotIndex(), ctl.robot().frame(ctl.hammer_head_frame_name), ctl.nail_normal_vector_world_frame, ctl._lambda_high, ctl._lambda_low, ctl._delta_t, ctl._c_res, ctl._dt_multi, ctl.logger(), ctl._tau_high_mulitplier, ctl._K, &ctl._Activation_height);
     mc_rtc::log::info("linear impulsive torque constraint activated");
   }
   else{
