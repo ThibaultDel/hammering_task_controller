@@ -292,6 +292,18 @@ void HammeringTaskNew::reset(const mc_control::ControllerResetData & reset_data)
   this->resume("Hammer::HammeringFSM");
 }
 
+int HammeringTaskNew::get_dof(const std::string & jname) const
+{
+  for(size_t i = 0; i < mass_maximization_active_joints.size(); ++i)
+  {
+    if(mass_maximization_active_joints[i] == jname)
+    {
+      return static_cast<int>(i) + 6;
+    }
+  }
+  return 29; // default to LWRR
+}
+
 void HammeringTaskNew::addToGUI()
 {
   this->gui()->addElement({"Hammering task"},
@@ -337,18 +349,11 @@ void HammeringTaskNew::addToGUI()
   using Style = mc_rtc::gui::plot::Style;
   using AxisConfig = mc_rtc::gui::plot::AxisConfiguration;
 
-  auto get_dof = [this](const std::string & jname) -> int {
-    for(size_t i = 0; i < mass_maximization_active_joints.size(); ++i)
+  auto get_plot_upper = [this](int dof) -> double {
+    if(selected_plot_mode_ == "Derivative of Impulsive Torque")
     {
-      if(mass_maximization_active_joints[i] == jname)
-      {
-        return static_cast<int>(i) + 6;
-      }
+      return (tau_imp_derivate_high_limit.size() > dof) ? tau_imp_derivate_high_limit(dof) : 0.0;
     }
-    return 29; // default to LWRR
-  };
-
-  auto get_upper = [this](int dof) -> double {
     if(impulseConstraint && impulseConstraint->TorqueHigherLimit().size() > dof)
     {
       return impulseConstraint->TorqueHigherLimit()(dof);
@@ -356,7 +361,11 @@ void HammeringTaskNew::addToGUI()
     return robot().tvmRobot().limits().tu(dof) * _dt_multi;
   };
 
-  auto get_lower = [this](int dof) -> double {
+  auto get_plot_lower = [this](int dof) -> double {
+    if(selected_plot_mode_ == "Derivative of Impulsive Torque")
+    {
+      return (tau_imp_derivate_low_limit.size() > dof) ? tau_imp_derivate_low_limit(dof) : 0.0;
+    }
     if(impulseConstraint && impulseConstraint->TorqueLowerLimit().size() > dof)
     {
       return impulseConstraint->TorqueLowerLimit()(dof);
@@ -364,12 +373,12 @@ void HammeringTaskNew::addToGUI()
     return robot().tvmRobot().limits().tl(dof) * _dt_multi;
   };
 
-  auto get_out = [this](int dof) -> double {
-    if(tau_imp_act.size() > dof)
+  auto get_plot_out = [this](int dof) -> double {
+    if(selected_plot_mode_ == "Derivative of Impulsive Torque")
     {
-      return tau_imp_act(dof);
+      return (tau_imp_derivate.size() > dof) ? tau_imp_derivate(dof) : 0.0;
     }
-    return 0.0;
+    return (tau_imp_act.size() > dof) ? tau_imp_act(dof) : 0.0;
   };
 
   auto make_curve = [this](const std::string & label, auto get_val, Color color, Style style) {
@@ -395,7 +404,7 @@ void HammeringTaskNew::addToGUI()
   int dof_lsr = get_dof("LSR");
 
   AxisConfig xAxis("t [s]");
-  AxisConfig yAxis("Torque [N.m]");
+  AxisConfig yAxis("Torque [N.m] / Deriv [N.m/s]");
 
   // GUI controls for Plots tab
   this->gui()->addElement({"Plots"},
@@ -410,99 +419,66 @@ void HammeringTaskNew::addToGUI()
       [this](double dt) { plot_dt_ = std::max(0.01, dt); })
   );
 
-  auto get_selected_out = [this, get_out](int dof) -> double {
-    if(selected_plot_mode_ == "Derivative of Impulsive Torque")
-    {
-      if(tau_imp_derivate.size() > dof)
-      {
-        return tau_imp_derivate(dof);
-      }
-      return 0.0;
-    }
-    return get_out(dof);
-  };
-
-  auto get_selected_upper = [this, get_upper](int dof) -> double {
-    if(selected_plot_mode_ == "Derivative of Impulsive Torque")
-    {
-      if(tau_imp_derivate_high_limit.size() > dof)
-      {
-        return tau_imp_derivate_high_limit(dof);
-      }
-      return 0.0;
-    }
-    return get_upper(dof);
-  };
-
-  auto get_selected_lower = [this, get_lower](int dof) -> double {
-    if(selected_plot_mode_ == "Derivative of Impulsive Torque")
-    {
-      if(tau_imp_derivate_low_limit.size() > dof)
-      {
-        return tau_imp_derivate_low_limit(dof);
-      }
-      return 0.0;
-    }
-    return get_lower(dof);
-  };
-
+  // Standard joint plots
   this->gui()->addXYPlot(
-    "Left Wrist: LWRR",
+    "LWRR",
     xAxis, yAxis,
-    make_curve("Output", [this, dof_lwrr, get_out]() { return get_out(dof_lwrr); }, Color::Red, Style::Solid),
-    make_curve("Upper Limit", [this, dof_lwrr, get_upper]() { return get_upper(dof_lwrr); }, Color::Red, Style::Dotted),
-    make_curve("Lower Limit", [this, dof_lwrr, get_lower]() { return get_lower(dof_lwrr); }, Color::Red, Style::Dotted)
+    make_curve("Output", [this, dof_lwrr, get_plot_out]() { return get_plot_out(dof_lwrr); }, Color::Red, Style::Solid),
+    make_curve("Upper Limit", [this, dof_lwrr, get_plot_upper]() { return get_plot_upper(dof_lwrr); }, Color::Red, Style::Dotted),
+    make_curve("Lower Limit", [this, dof_lwrr, get_plot_lower]() { return get_plot_lower(dof_lwrr); }, Color::Red, Style::Dotted)
   );
   this->gui()->addXYPlot(
-    "Left Wrist: LWRP",
+    "LWRP",
     xAxis, yAxis,
-    make_curve("Output", [this, dof_lwrp, get_out]() { return get_out(dof_lwrp); }, Color::Blue, Style::Solid),
-    make_curve("Upper Limit", [this, dof_lwrp, get_upper]() { return get_upper(dof_lwrp); }, Color::Blue, Style::Dotted),
-    make_curve("Lower Limit", [this, dof_lwrp, get_lower]() { return get_lower(dof_lwrp); }, Color::Blue, Style::Dotted)
+    make_curve("Output", [this, dof_lwrp, get_plot_out]() { return get_plot_out(dof_lwrp); }, Color::Blue, Style::Solid),
+    make_curve("Upper Limit", [this, dof_lwrp, get_plot_upper]() { return get_plot_upper(dof_lwrp); }, Color::Blue, Style::Dotted),
+    make_curve("Lower Limit", [this, dof_lwrp, get_plot_lower]() { return get_plot_lower(dof_lwrp); }, Color::Blue, Style::Dotted)
   );
   this->gui()->addXYPlot(
-    "Left Wrist: LWRY",
+    "LWRY",
     xAxis, yAxis,
-    make_curve("Output", [this, dof_lwry, get_out]() { return get_out(dof_lwry); }, Color::Green, Style::Solid),
-    make_curve("Upper Limit", [this, dof_lwry, get_upper]() { return get_upper(dof_lwry); }, Color::Green, Style::Dotted),
-    make_curve("Lower Limit", [this, dof_lwry, get_lower]() { return get_lower(dof_lwry); }, Color::Green, Style::Dotted)
+    make_curve("Output", [this, dof_lwry, get_plot_out]() { return get_plot_out(dof_lwry); }, Color::Green, Style::Solid),
+    make_curve("Upper Limit", [this, dof_lwry, get_plot_upper]() { return get_plot_upper(dof_lwry); }, Color::Green, Style::Dotted),
+    make_curve("Lower Limit", [this, dof_lwry, get_plot_lower]() { return get_plot_lower(dof_lwry); }, Color::Green, Style::Dotted)
   );
 
-  // Left Arm (3 independent joint plots)
   this->gui()->addXYPlot(
-    "Left Arm: LEP",
+    "LEP",
     xAxis, yAxis,
-    make_curve("Output", [this, dof_lep, get_out]() { return get_out(dof_lep); }, Color::Green, Style::Solid),
-    make_curve("Upper Limit", [this, dof_lep, get_upper]() { return get_upper(dof_lep); }, Color::Green, Style::Dotted),
-    make_curve("Lower Limit", [this, dof_lep, get_lower]() { return get_lower(dof_lep); }, Color::Green, Style::Dotted)
+    make_curve("Output", [this, dof_lep, get_plot_out]() { return get_plot_out(dof_lep); }, Color::Green, Style::Solid),
+    make_curve("Upper Limit", [this, dof_lep, get_plot_upper]() { return get_plot_upper(dof_lep); }, Color::Green, Style::Dotted),
+    make_curve("Lower Limit", [this, dof_lep, get_plot_lower]() { return get_plot_lower(dof_lep); }, Color::Green, Style::Dotted)
   );
   this->gui()->addXYPlot(
-    "Left Arm: LSP",
+    "LSP",
     xAxis, yAxis,
-    make_curve("Output", [this, dof_lsp, get_out]() { return get_out(dof_lsp); }, Color::Magenta, Style::Solid),
-    make_curve("Upper Limit", [this, dof_lsp, get_upper]() { return get_upper(dof_lsp); }, Color::Magenta, Style::Dotted),
-    make_curve("Lower Limit", [this, dof_lsp, get_lower]() { return get_lower(dof_lsp); }, Color::Magenta, Style::Dotted)
+    make_curve("Output", [this, dof_lsp, get_plot_out]() { return get_plot_out(dof_lsp); }, Color::Magenta, Style::Solid),
+    make_curve("Upper Limit", [this, dof_lsp, get_plot_upper]() { return get_plot_upper(dof_lsp); }, Color::Magenta, Style::Dotted),
+    make_curve("Lower Limit", [this, dof_lsp, get_plot_lower]() { return get_plot_lower(dof_lsp); }, Color::Magenta, Style::Dotted)
   );
   this->gui()->addXYPlot(
-    "Left Arm: LSR",
+    "LSR",
     xAxis, yAxis,
-    make_curve("Output", [this, dof_lsr, get_out]() { return get_out(dof_lsr); }, Color::Cyan, Style::Solid),
-    make_curve("Upper Limit", [this, dof_lsr, get_upper]() { return get_upper(dof_lsr); }, Color::Cyan, Style::Dotted),
-    make_curve("Lower Limit", [this, dof_lsr, get_lower]() { return get_lower(dof_lsr); }, Color::Cyan, Style::Dotted)
+    make_curve("Output", [this, dof_lsr, get_plot_out]() { return get_plot_out(dof_lsr); }, Color::Cyan, Style::Solid),
+    make_curve("Upper Limit", [this, dof_lsr, get_plot_upper]() { return get_plot_upper(dof_lsr); }, Color::Cyan, Style::Dotted),
+    make_curve("Lower Limit", [this, dof_lsr, get_plot_lower]() { return get_plot_lower(dof_lsr); }, Color::Cyan, Style::Dotted)
   );
 
-  // Detailed Inspector for any selected joint
+  // Custom selected joint plot
   this->gui()->addXYPlot(
-    "Selected Joint plot",
+    "Selected Joint",
     xAxis, yAxis,
-    make_curve("Predicted Output", [this, get_dof, get_selected_out]() {
-      return get_selected_out(get_dof(selected_plot_joint_));
+    make_curve("Output", [this, get_plot_out]() {
+      int dof = get_dof(selected_plot_joint_);
+      return get_plot_out(dof);
     }, Color::Green, Style::Solid),
-    make_curve("Upper Limit", [this, get_dof, get_selected_upper]() {
-      return get_selected_upper(get_dof(selected_plot_joint_));
+    make_curve("Upper Limit", [this, get_plot_upper]() {
+      int dof = get_dof(selected_plot_joint_);
+      return get_plot_upper(dof);
     }, Color::Red, Style::Dotted),
-    make_curve("Lower Limit", [this, get_dof, get_selected_lower]() {
-      return get_selected_lower(get_dof(selected_plot_joint_));
+    make_curve("Lower Limit", [this, get_plot_lower]() {
+      int dof = get_dof(selected_plot_joint_);
+      return get_plot_lower(dof);
     }, Color::Blue, Style::Dotted)
   );
 }

@@ -279,6 +279,8 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
     double plot_timer_ = 0.0;
     double plot_dt_ = 0.16; // Live plot update interval [s], loaded from YAML (default 0.16s / ~6 Hz)
     bool should_plot_tick_ = false;
+
+    int get_dof(const std::string & jname) const;
   private:
 
 
