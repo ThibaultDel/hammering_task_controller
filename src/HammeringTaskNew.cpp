@@ -238,7 +238,7 @@ bool HammeringTaskNew::run()
   Eigen::Matrix3d R = Eigen::AngleAxisd(-M_PI/4.0, Eigen::Vector3d::UnitX()).toRotationMatrix();
   tau_imp_true_force=J_Larm_sensor_.transpose()*P_n_sub*(R*robot().forceSensor("LeftHandForceSensor").force());
   tau_imp = (-1.f*(_c_res+1)/_delta_t)*J_.transpose()*effective_mass*P_n*J_*q_d;
-  tau_imp_act = (-1.f*(_c_res+1)/_delta_t)*J_.transpose()*effective_mass*P_n*J_*q_d;// use just for logging
+  tau_imp_act = (-1.f*(_c_res+1)/_delta_t)*J_.transpose()*effective_mass*P_n*J_*qdm;// use just for logging
   tau_imp_derivate = -(_c_res+1)/_delta_t*((J_d.transpose()*effective_mass*P_n*J_
   +J_.transpose()*effective_mass_d*P_n*J_
   +J_.transpose()*effective_mass*P_n*J_d)*q_d
@@ -699,7 +699,7 @@ void HammeringTaskNew::add_logs()
     logger().addLogEntry("ImpulsiveTorquePredicted_derivative", this, [&,this]()
     {return tau_imp_derivate;});
     
-    logger().addLogEntry("ImpulsiveTorquePredicted_numderivative", this, [&,this]()
+    logger().addLogEntry("ImpulsiveTorquePredicted_actual_numderivative", this, [&,this]()
     {return tau_imp_derivate_num;});
 
     logger().addLogEntry("ImpulsiveTorquePredicted_low_limit_derivative", this, [&,this]()
@@ -707,12 +707,6 @@ void HammeringTaskNew::add_logs()
 
     logger().addLogEntry("ImpulsiveTorquePredicted_high_limit_derivative", this, [&,this]()
     {return tau_imp_derivate_high_limit;});
-
-    logger().addLogEntry("ImpulsiveTorquePredicted_torque_limit_high", this, [&,this]()
-    {return robot().tvmRobot().limits().tu;});
-
-    logger().addLogEntry("ImpulsiveTorquePredicted_torque_limit_low", this, [&,this]()
-    {return robot().tvmRobot().limits().tl;});
 
     logger().addLogEntry("ImpulsiveTorquesimulated_speed",this,[&,this]
     {return tau_imp_true_speed;});
