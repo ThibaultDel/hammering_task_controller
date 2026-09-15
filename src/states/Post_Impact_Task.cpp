@@ -28,7 +28,7 @@ void Post_Impact_Task::start(mc_control::fsm::Controller & ctl_)
     _target_vel = sva::MotionVecd(Eigen::Vector3d::Zero(), _target_velocity);
     _nail_point = ctl.robots().robot(ctl.nail_robot_name).frame(ctl.nail_frame_name).position().translation() + Eigen::Vector3d(0.f, 0.f, 0.2f);
     // Eigen::Vector3d offset_from_nail = {0.f, 0.f, 0.1f};
-    Eigen::Vector3d get_away_target =_nail_point + ctl.normal_vector_nail_frame*_post_impact_get_away_distance + Eigen::Vector3d(-0.25f, -0.1f, 0.0f);
+    Eigen::Vector3d get_away_target =_nail_point + ctl.normal_vector_nail_frame*_post_impact_get_away_distance;
     _target_transform = sva::PTransformd(sva::RotX(M_PI)) * sva::PTransformd(sva::RotY(M_PI/2)) * sva::PTransformd(ctl.robots().robot(ctl.nail_robot_name).frame(ctl.nail_frame_name).position().rotation()) *sva::PTransformd(get_away_target) ;//* sva::PTransformd(Eigen::Vector3d(0.5, 0.2, 1));
     _transform_task = std::make_shared<mc_tasks::TransformTask>(ctl.robot().frame(ctl.hammer_head_frame_name), _transform_task_stiffness, _transform_task_weight);
     // _transform_task->reset();
@@ -104,11 +104,7 @@ void Post_Impact_Task::teardown(mc_control::fsm::Controller & ctl_)
 {
     auto & ctl = static_cast<HammeringTaskNew &>(ctl_);
     // ctl.solver().removeTask(_postureTask);
-    if(_transform_task)
-    {
-        ctl.solver().removeTask(_transform_task);
-        _transform_task.reset();
-    }
+    ctl.solver().removeTask(_transform_task);
 }
 
 void Post_Impact_Task::load_parameters()

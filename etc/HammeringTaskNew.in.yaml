@@ -199,7 +199,7 @@ states:
       magic_normal_final_velocity:
       - 0
       - 0
-      - -0.1
+      - -0.0001
       linear_velocity:
       - 0
       - 0
