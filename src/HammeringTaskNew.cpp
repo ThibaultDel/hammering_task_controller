@@ -316,6 +316,10 @@ void HammeringTaskNew::addToGUI()
       mc_rtc::gui::ArrayInput("trajectory task weight"
       ,[this]() {return this->dimweights;}
       ,[this](const Eigen::Vector6d & weight) {this->dimweights = weight;}),
+      mc_rtc::gui::ArrayInput("hitting target (x y z)"
+      ,[this]() { return _magic_hitting_target;}
+      ,[this](const Eigen::Vector3d & _magic_hitting_target_param) {_magic_hitting_target=_magic_hitting_target_param;}),
+
       mc_rtc::gui::ArrayInput("Orientation (weight stiffness damping)"
       ,[this]() { return Eigen::Vector3d{this->_magic_vector_orientation_task_weight,this->_magic_vector_orientation_task_stiffness,this->_magic_vector_orientation_task_damping};}
       ,[this](const Eigen::Vector3d & orientation_param) {_magic_vector_orientation_task_weight=orientation_param(0);
@@ -342,11 +346,20 @@ void HammeringTaskNew::addToGUI()
                                                         _vp=Impusle_constraint_param(3);
                                                         _lambda_high=Impusle_constraint_param(4);
                                                         _lambda_low=Impusle_constraint_param(5);}),
+            mc_rtc::gui::ArrayInput("Impulse Constraint(Cres dt multiplier velocityP lambdaH lambaL)"
+      ,[this]() { return Eigen::Vector6d{this->_c_res,this->_delta_t,this->_dt_multi,this->_vp,this->_lambda_high,this->_lambda_low};}
+      ,[this](const Eigen::Vector6d & Impusle_constraint_param) {_c_res=Impusle_constraint_param(0);
+                                                        _delta_t=Impusle_constraint_param(1);
+                                                        _dt_multi=Impusle_constraint_param(2);
+                                                        _vp=Impusle_constraint_param(3);
+                                                        _lambda_high=Impusle_constraint_param(4);
+                                                        _lambda_low=Impusle_constraint_param(5);}),
       mc_rtc::gui::ArrayInput("Linear imptorque ctR parameters (Activation heigth,tau high multiplier,K)"
       ,[this]() { return Eigen::Vector3d{this->_Activation_height,this->_tau_high_mulitplier,this->_K};}
       ,[this](const Eigen::Vector3d & Linear_impulsive_constraint) {_Activation_height = Linear_impulsive_constraint(0);
                                                         _tau_high_mulitplier = Linear_impulsive_constraint(1),
                                                         _K = Linear_impulsive_constraint(2);}));
+                                                        
   this->gui()->addElement({},
     mc_rtc::gui::Checkbox(linear_constraint_button_name, [this]() { return linear_impulsive_torque_ctr_flag; }, [this]() { linear_impulsive_torque_ctr_flag = !linear_impulsive_torque_ctr_flag; })
   );
@@ -595,6 +608,7 @@ void HammeringTaskNew::load_parameters()
   std::string nail_frame_key = "nail";
  config_(global_controller)(frames_key)(hammerhead_frame_key, hammer_head_frame_name);
  config_(global_controller)(frames_key)(nail_frame_key, nail_frame_name);
+ config_(global_controller)(frames_key)(nail_frame_key, nail_frame_name);
 
   // ------------------------ Loading magic values ---------------------------
 
@@ -654,6 +668,8 @@ void HammeringTaskNew::load_parameters()
 
   std::string init_key = "init";
   std::string end_key = "end";
+
+ _magic_hitting_target =  config_(global_control_param_key)(hitting_tasks_paramater)("hitting_target");
 
   _magic_posture_task_weight = config_(global_control_param_key)(hitting_tasks_paramater)("magic_posture_task_weight");
   _magic_posture_task_stiffness = config_(global_control_param_key)(hitting_tasks_paramater)("magic_posture_task_stiffness");

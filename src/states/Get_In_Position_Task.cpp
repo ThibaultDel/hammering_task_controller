@@ -52,7 +52,7 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   _oriWp = {};
   
   // The target is the translation of the nail
-  _nail_point = _magic_hitting_target;
+  _nail_point = ctl._magic_hitting_target;
   _end_point = _nail_point + Eigen::Vector3d(0, 0, 0);
   _posWp = {/*_nail_point*/};
 
@@ -347,7 +347,7 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
 
   double impact_detection_position_threshold = 0.02;
   bool height_stop_offset=0.01;
-  bool stop_height_flag = ctl.hammer_tip_actual_position_vector[2] < _magic_hitting_target[2];
+  bool stop_height_flag = ctl.hammer_tip_actual_position_vector[2] < ctl._magic_hitting_target[2];
 
   if (!ctl.bspline_active_)
   {
@@ -1367,7 +1367,7 @@ void Get_In_Position_Task::load_params()
   _gripper_task_goal_error = _config(magic_values_key)("gripper_task_goal_error");
   _gripper_task_K_scaling_factor = _config(magic_values_key)("gripper_task_s");
 
-  _magic_hitting_target =  _config(magic_values_key)("hitting_target");
+  //_magic_hitting_target =  _config(magic_values_key)("hitting_target");
   // ------------------------ Loading init and start velocities, accelerations and jerks ---------------------------
 
 

@@ -88,7 +88,11 @@ global_controller_params:
       magic_init_velocity:
       - 0
       - 0
-      - 0   
+      - 0
+    hitting_target:
+      - 0.7
+      - 0.3
+      - 0.9   
   stabilizer:
     torso:
       stiffness: 10.0
@@ -158,10 +162,6 @@ states:
       gripper_task_s: 0.5
       gripper_task_weight: 10
       logging_freq: 50
-      hitting_target:
-      - 0.4
-      - 0.4
-      - 0.9
     curve_constraints:
       magic_normal_final_velocity:
       - 0

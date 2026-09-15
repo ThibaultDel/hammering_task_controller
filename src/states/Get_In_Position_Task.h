@@ -69,7 +69,7 @@ struct Get_In_Position_Task : mc_control::fsm::State
     Eigen::Vector3d _target_velocity;
     sva::MotionVecd _target_vel;
 
-    Eigen::Vector3d _magic_hitting_target = {0, 0, 0};
+    //Eigen::Vector3d _magic_hitting_target = {0, 0, 0};
 
     // Transform task to test tvm
     std::shared_ptr<mc_tasks::TransformTask> gripper_task;
@@ -452,5 +452,8 @@ struct Get_In_Position_Task : mc_control::fsm::State
     // variables for stiffness staggering
     bool first_iteration = true;
     double first_instance_error;
+
+    std::unique_ptr<mc_solver::ImpulseConstraint> impulseConstraint;
+
 
 };

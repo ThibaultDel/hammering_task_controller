@@ -156,7 +156,7 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
 
     double _magic_normal_final_velocity = 1.0f;//
     Eigen::Vector3d _magic_final_velocity = {0, 0, 0};
-
+    Eigen::Vector3d _magic_hitting_target = {0, 0, 0};
     // ------------------------------ Parameters ---------------------------------------------
     // Parameters loaded in the load_parameters function, parameters are found in the HammeringTaskNew.in.yaml file
     // Don't ask me why there is a '.in' in the name of the file, I don't know 
