@@ -29,6 +29,7 @@ void HammeringTaskNew_Initial::start(mc_control::fsm::Controller & ctl_)
   // mc_rtc::log::info("posture dimweights are: {}",ctl.getPostureTask(ctl_.robot().name())->dimWeight());
   ctl.getPostureTask(ctl.robot().name())->stiffness(ctl.base_posture_stiffness);
   ctl.getPostureTask(ctl.robot().name())->weight(ctl.base_posture_weight);
+  ctl.getPostureTask(ctl.robot().name())->damping(ctl.base_posture_damping);
 
   auto & Active_tasks = ctl.solver().tasks();
   for (auto i:Active_tasks){
@@ -48,14 +49,8 @@ void HammeringTaskNew_Initial::start(mc_control::fsm::Controller & ctl_)
 bool HammeringTaskNew_Initial::run(mc_control::fsm::Controller & ctl_)
 {
   auto & ctl = static_cast<HammeringTaskNew &>(ctl_);
-  // static_cast<r *>(constraint_.get())
-  // static_cast<TVMImpulseConstraint *>(ctl.impulseConstraint->getConstraint().get())->impFunctionLow()->runUpdateA();
-  // ctl.impulseConstraint->getConstraint().get()->impFunctionLow()->runUpdateB();
-  // ctl.impulseConstraint->getConstraint().get()->impFunctionHigh()->runUpdateB();
-  // ctl.impulseConstraint->getConstraint().get()->impFunctionLow()->runUpdateJacobian();
-  // ctl.impulseConstraint->getConstraint().get()->impFunctionHigh()->runUpdateJacobian();
+
   total_time_elapsed += ctl_.solver().dt();
-  // mc_rtc::log::info("posture dimweights are: {}",ctl.getPostureTask(ctl_.robot().name())->dimWeight());
 
   ctl.getPostureTask(ctl.robot().name())->stiffness(ctl.base_posture_stiffness);
   // // Stagger the buildup of the task stiffness for the transform task to not get a failing QP on startup of state

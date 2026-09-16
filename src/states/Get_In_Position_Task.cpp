@@ -10,9 +10,7 @@
 
 void Get_In_Position_Task::configure(const mc_rtc::Configuration & config)
 {
-   _config.load(config);
-    // mc_rtc::log::info("Get_In_Position_Task configure function called with config : \n{}", config.dump(true, true));
-    
+   _config.load(config);    
 }
 
 void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
@@ -31,16 +29,12 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
 
   // ------------------------- BSplineTrajectoryTask ----------------------------
   
-  
   // I dont need to specify the endpoint as a posWp because _target takes care of that
   // If I do specify it, then it would add 1 degree to the curve even though the points are the same
   // I also dont need to specify the starting point because the first argument of the task takes care of that
   // Thus _posWp is empty
   // _posWp = {};
   
-  // _constr.end_vel.x() = _magic_normal_final_velocity*ctl.nail_normal_vector_world_frame.x();
-  // _constr.end_vel.y() = _magic_normal_final_velocity*ctl.nail_normal_vector_world_frame.y();
-  // _constr.end_vel.z() = _magic_normal_final_velocity*ctl.nail_normal_vector_world_frame.z();
   _constr.init_vel.x()=ctl._magic_init_vel(0);
   _constr.init_vel.y()=ctl._magic_init_vel(1);
   _constr.init_vel.z()=ctl._magic_init_vel(2);
@@ -54,7 +48,7 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   // The target is the translation of the nail
   _nail_point = ctl._magic_hitting_target;
   _end_point = _nail_point + Eigen::Vector3d(0, 0, 0);
-  _posWp = {/*_nail_point*/};
+  _posWp = {(ctl.robot().frame(ctl.hammer_head_frame_name).position().translation() + _nail_point) / 2 + ctl.nail_normal_vector_world_frame * ctl._magic_bspline_waypoint_height};
 
   // _end_point[2] += 0.02;
   // _target = sva::PTransformd(_end_point);
@@ -78,73 +72,15 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
                                                                   _oriWp);
 
   _BSplineVel->setGains(ctl._magic_BSpline_task_stiffness, ctl._magic_BSpline_task_damping);
-
-  //Eigen::Vector6d dimweights = _BSplineVel->dimWeight(); // dimweigth to be deleted
-  // Remove the orientation part of the BSpline by setting the orientation weights to 0
-  // if(!_enable_BSpline_orientation)
-  // {
-  //   dimweights(0) = 0;
-  //   dimweights(1) = 0;
-  //   dimweights(2) = 0;
-  // }
-  // Increase the weights on the x and y coordinates
-  // dimweights(0) = _magic_BSpline_task_dimweight_rx; // dimweigth to be deleted
-  // dimweights(1) = _magic_BSpline_task_dimweight_ry;
-  // dimweights(2) = _magic_BSpline_task_dimweight_rz;
-  // dimweights(3) = _magic_BSpline_task_dimweight_tx;
-  // dimweights(4) = _magic_BSpline_task_dimweight_ty;
-  // dimweights(5) = _magic_BSpline_task_dimweight_tz;
   _BSplineVel->dimWeight(ctl.dimweights);
   ctl.solver().addTask(_BSplineVel);
+
   ctl.bspline_active_ = true;
-
-    // _constr.init_vel = ctl.hammer_tip_actual_velocity_vector;
-    // _constr.end_vel = ctl.nail_rot.transpose()*_magic_normal_final_velocity;
-    //
-    // // The target is the translation of the nail
-    // Eigen::Vector3d _nail_point = ctl.robots().robot(ctl.nail_robot_name).frame(ctl.nail_frame_name).position().translation();
-    // _end_point = _nail_point + Eigen::Vector3d(0, 0, -0.1);
-    //
-    // _target = sva::PTransformd(sva::RotX(M_PI)) * sva::PTransformd(sva::RotY(M_PI/2)) * sva::PTransformd(ctl.robots().robot(ctl.nail_robot_name).frame(ctl.nail_frame_name).position().rotation()) *sva::PTransformd(_end_point);//* sva::PTransformd(Eigen::Vector3d(0.5, 0.2, 1));
-    //
-    // mc_rtc::log::info("Adding BSpline task with weight {}", _magic_BSpline_task_weight);
-    //
-    // _BSplineVel2 = std::make_shared<mc_tasks::ExactCubicTrajectoryTask>(ctl.robot().frame(ctl.hammer_head_frame_name),
-    //                                                                 _magic_normal_final_velocity, // duration depends on the final velocity along z
-    //                                                                 _magic_BSpline_task_stiffness,
-    //                                                                 _magic_BSpline_task_weight,
-    //                                                                 _target,
-    //                                                                 _posWp,
-    //                                                                 ctl.nail_rot.transpose()*_magic_normal_final_velocity,
-    //                                                                 Eigen::Vector3d(0, 0, 0),
-    //                                                                 Eigen::Vector3d(0, 0, 0),
-    //                                                                 Eigen::Vector3d(0, 0, 0),
-    //                                                                 Eigen::Vector3d(0, 0, 0),
-    //                                                                 _oriWp);
-    //
-    // Eigen::Vector6d dimweights = _BSplineVel2->dimWeight();
-    // // Remove the orientation part of the BSpline by setting the orientation weights to 0
-    // if(!_enable_BSpline_orientation)
-    // {
-    //   dimweights(0) = 0;
-    //   dimweights(1) = 0;
-    //   dimweights(2) = 0;
-    // }
-    // // Increase the weights on the x and y coordinates
-    // dimweights(3) = _magic_BSpline_task_dimweight_x;
-    // dimweights(4) = _magic_BSpline_task_dimweight_y;
-    // dimweights(5) = _magic_BSpline_task_dimweight_z;
-    // _BSplineVel2->dimWeight(dimweights);
-    // ctl.solver().addTask(_BSplineVel2);
-    //
-
 
   mc_rtc::log::info("Degree of BSpline : {}", _BSplineVel->spline().get_bezier()->degree());
 
   ctl.getPostureTask(ctl.robot().name())->stiffness(_magic_posture_task_stiffness);
   ctl.getPostureTask(ctl.robot().name())->weight(ctl._magic_posture_task_weight);
-
-  // gripper_task->target(sva::PTransformd(sva::RotY(M_PI)) * sva::PTransformd(sva::RotZ(M_PI/2)) * sva::PTransformd(Eigen::Vector3d(0 ,0, 0.025)) * ctl.robot("box").frame("Right").position());
 
   auto gripper_target = sva::PTransformd(Eigen::Quaterniond(0.0f, 0.708, 0.0f, -0.705)) * sva::PTransformd(_end_point);//sva::PTransformd(Eigen::Vector3d(0.7, 0.5, 1)) * 
 
@@ -154,22 +90,6 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   gripper_task->target(gripper_target);
 
   Eigen::Vector6d dimweights_grip = gripper_task->dimWeight();
-  // Remove the orientation part of the BSpline by setting the orientation weights to 0
-  // if(!_enable_BSpline_orientation)
-  // {
-  //   dimweights_grip(0) = 0;
-  //   dimweights_grip(1) = 0;
-  //   dimweights_grip(2) = 0;
-  // }
-  // Increase the weights on the x and y coordinates
-  // dimweights_grip(0) = _magic_BSpline_task_dimweight_rx;
-  // dimweights_grip(1) = _magic_BSpline_task_dimweight_ry;
-  // dimweights_grip(2) = _magic_BSpline_task_dimweight_rz;
-  // dimweights_grip(3) = _magic_BSpline_task_dimweight_tx;
-  // dimweights_grip(4) = _magic_BSpline_task_dimweight_ty;
-  // dimweights_grip(5) = _magic_BSpline_task_dimweight_tz;
-  // gripper_task->dimWeight(dimweights_grip);
-
 
   // ------------------------- VectorOrientationTask ----------------------------
 
@@ -183,10 +103,8 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   ctl.solver().addTask(_vectorOrientationTask);
   
   mc_rtc::log::info("Mass of the nail = {} kg", ctl.robot(ctl.nail_robot_name).mass());
-  //mc_rtc::log::info("solver timestep = {} s", ctl.solver().dt());
 
   // // Add impulse constraint
-  // Eigen::Vector3d normal_nail = ctl.robot(ctl.nail_robot_name).frame(ctl.nail_frame_name).position().rotation().col(2).eval();
   if(ctl.linear_impulsive_torque_ctr_flag){
     ctl.impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(_BSplineVel, ctl.robots(), ctl.robot().robotIndex(), ctl.robot().frame(ctl.hammer_head_frame_name), ctl.nail_normal_vector_world_frame, ctl._lambda_high, ctl._lambda_low, ctl._delta_t, ctl._c_res, ctl._dt_multi, ctl.logger(), ctl._tau_high_mulitplier, ctl._K, &ctl._Activation_height);
     mc_rtc::log::info("linear impulsive torque constraint activated");
@@ -195,31 +113,9 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
     ctl.impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(ctl.robots(), ctl.robot().robotIndex(), ctl.robot().frame(ctl.hammer_head_frame_name), ctl.nail_normal_vector_world_frame, ctl._lambda_high, ctl._lambda_low, ctl._delta_t, ctl._c_res, ctl._dt_multi, ctl.logger());
     mc_rtc::log::info("impulsive torque constraint activated");
   }
-  // Post Bspline velocity task
-  // _target_velocity = ctl.nail_rot.transpose()*_magic_normal_final_velocity;
-  // _target_vel = sva::MotionVecd(Eigen::Vector3d::Zero(), _target_velocity);
-  // _transform_task = std::make_shared<mc_tasks::TransformTask>(ctl.robot().frame(ctl.hammer_head_frame_name), _velocity_task_stiffness, _velocity_task_weight);
-  // _transform_task->targetVel(_target_vel);
-  // _transform_task->setGains(0, _velocity_task_stiffness);
-  //
   dimweights_transform_task = {0,0,0,0,0,0};
-  // // Remove the orientation part of the BSpline by setting the orientation weights to 0
-  // if(!_enable_BSpline_orientation)
-  // {
-  //   dimweights_transform_task(0) = 0;
-  //   dimweights_transform_task(1) = 0;
-  //   dimweights_transform_task(2) = 0;
-  // }
-  // // Increase the weights on the x and y coordinates
-  // dimweights_transform_task(3) = _magic_BSpline_task_dimweight_x;
-  // dimweights_transform_task(4) = _magic_BSpline_task_dimweight_y;
-  // dimweights_transform_task(5) = _magic_BSpline_task_dimweight_z*2000.f;
-  // _transform_task->dimWeight(dimweights_transform_task);
-  // ctl.solver().addTask(_transform_task);
 
   _new_mbc = ctl.robot().mbc();
-
-  //ctl.effective_mass = /*ctl.*/compute_effective_mass_with_mbc(_new_mbc, ctl, ctl.nail_normal_vector_world_frame);
 
   previous_effective_mass = ctl.effective_mass;
 }
@@ -251,27 +147,7 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
 
   HammeringTaskNew &ctl = static_cast<HammeringTaskNew &>(ctl_);
   _new_mbc = ctl.robot().mbc();
-  // if(_first_iteration)
-  // {
-  // // For some reason the mass matrix is null at the very first iteration, Thomas said it was a bug getting fixed
-  // _first_iteration = !_first_iteration;
-  //   _total_time_elapsed+=ctl.solver().dt();
-  //   return false;
-  // }
 
-  // Compute some values and update the logs
-  // ctl.effective_mass = compute_effective_mass_with_mbc(_new_mbc,
-  //                                                 ctl, 
-  //                                                 ctl.nail_normal_vector_world_frame);
-
-  //ctl.effective_mass = compute_effective_mass_with_mbc(_new_mbc, ctl, ctl.nail_normal_vector_world_frame);
-  //ctl.effective_mass_diff = (ctl.effective_mass - previous_effective_mass)/ctl.solver().dt();
-  //ctl.effective_mass_diff_diff = (ctl.effective_mass_d - effective_mass_d)/ctl.solver().dt();
-  //previous_effective_mass = ctl.effective_mass;
-  //previous_eff_mass_diff = ctl.effective_mass_d;
-
-  // ctl.hammer_tip_actual_velocity_vector = ctl.robot().frame(ctl.hammer_head_frame_name).velocity().linear();
-  // ctl.hammer_tip_actual_position_vector = ctl.robot().frame(ctl.hammer_head_frame_name).position().translation();
   if (ctl.bspline_active_)
   {
     ctl.hammer_tip_reference_velocity_vector = bezier_vel_from_task(_BSplineVel,
@@ -289,8 +165,6 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
   {
     ctl.hammer_tip_reference_position_vector = gripper_task->target().translation();
   }
-  // ctl.hammer_tip_reference_position_vector = bezier_curve(_total_time_elapsed);
-  // ctl.hammer_tip_reference_position_vector = gripper_task->target().translation();
   ctl.projected_momentum_of_hammer_tip = compute_projected_momentum(ctl.effective_mass,
                                                                     ctl.hammer_tip_actual_velocity_vector, 
                                                                     ctl.nail_normal_vector_world_frame);
@@ -316,10 +190,6 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
   ctl.vector_orientation_error = vector_error(-ctl.nail_normal_vector_world_frame, 
                                             (current_hammer_rotation.transpose()*ctl.normal_vector_to_align_in_hammerhead_frame).normalized());
 
-  //_gradient_of_m = compute_emass_gradient_three_point_backward_difference_mbc(_new_mbc,
-  //                                                                          ctl, 
-  //                                                              ctl.nail_normal_vector_world_frame);
-
   // "Modified" posture task or trick
   int number_of_joints = ctl.robot().tvmRobot().qJoints()->size();
 
@@ -330,18 +200,8 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
     joint_selector(joint_index, joint_index) = 1.0;
   }
 
-  //Eigen::VectorXd feedforward_term = (ctl._magic_effective_mass_maximization_task_weight/ctl._magic_posture_task_weight) * joint_selector * _gradient_of_m.tail(ctl.robot().tvmRobot().qJoints()->size());
-  //ctl.getPostureTask(ctl.robot().name())->refAccel(feedforward_term);
-
   auto q_d = ctl.robot().tvmRobot().alpha()->value();
   Eigen::VectorXd q_d_selected = q_d.tail(number_of_joints);
-
-  //ctl.eff_mass_diff_checker = _gradient_of_m.transpose()*q_d;
-
-  // End state at impact
-  //ctl.impact_detected = abs(ctl.nail_force_vector.x()) >= ctl.magic_force_threshold_nail || 
-  //                      abs(ctl.nail_force_vector.y()) >= ctl.magic_force_threshold_nail || 
-  //                      abs(ctl.nail_force_vector.z()) >= ctl.magic_force_threshold_nail;
 
   ctl.impact_detected = ctl.robot().forceSensor("LeftHandForceSensor").force().norm()>=ctl.magic_force_threshold_sensor;
 
@@ -382,11 +242,6 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
   if(ctl.impact_detected/*stop*/)
   {
     ctl.number_of_hits++;
-
-    //I don't know why but apparently TVMImpulsiveConstraint is not recognised as a type
-    //ctl.logger().addLogEntry("ImpulsiveTorqueSimulated_Cut", this, [&, this]()
-    //{return static_cast<TVMImpulseConstraint *>(ctl.impulseConstraint->getConstraint().get())->impFunctionLow()->ImpulsiveTorqueTrue();});
-    //ctl.logger().removeLogEntry("ImpulsiveTorqueSimulated_Cut");
 
     // Manually set the floating base pose, velocity and acceleration in the world frame from the bodysensor
     ctl.comparisonRobots_->robot().posW(sva::PTransformd(ctl.floatingBaseSensor_.orientation(), ctl.floatingBaseSensor_.position()));
@@ -531,31 +386,6 @@ const double Get_In_Position_Task::compute_effective_mass_with_mbc(
   return 1/(normal_vector.transpose()*LAMBDA*normal_vector);
 }
 
-// const double Get_In_Position_Task::compute_effective_mass_with_mbc(
-//   rbd::MultiBodyConfig mbc, 
-//   mc_control::fsm::Controller & ctl_, 
-//   const Eigen::Vector3d &normal_vector) const{
-//   auto & ctl = static_cast<HammeringTaskNew &>(ctl_);
-//   // If you dont put this line the gradient is 0 everywhere because M and J are not updating
-//   ctl.robot().forwardKinematics(mbc);                                                                                                   
-//   rbd::MultiBody robot_mb = ctl_.robot().mb();
-//   rbd::Jacobian jac(robot_mb, _hammer_head_frame_name, _jacobian_verbose_active);
-//   Eigen::MatrixXd world_frame_jacobian = jac.jacobian(robot_mb, mbc);
-//   Eigen::MatrixXd full_world_frame_jacobian(6, ctl.robot().mb().nrDof());
-//   jac.fullJacobian(robot_mb, world_frame_jacobian, full_world_frame_jacobian);
-//   const Eigen::MatrixXd M = _dynamicsConstraint->motionConstr().fd().H();
-//   const Eigen::MatrixXd linear_jacobian = full_world_frame_jacobian.bottomRows(3);
-//   // writeEigenMatrixToCSV(linear_jacobian, "linear_jac.csv");
-//   // mc_rtc::log::info("Dim of M = {} x {}", M.cols(), M.rows());
-//   // mc_rtc::log::info("M = {}", M);
-//   // const Eigen::Matrix3d LAMBDA = linear_jacobian*M.inverse()*linear_jacobian.transpose();
-//   const Eigen::MatrixXd LAMBDA_INVERSE = (full_world_frame_jacobian*M*full_world_frame_jacobian.transpose()).inverse();
-//   const Eigen::MatrixXd LINEAR_LAMBDA_INVERSE = LAMBDA_INVERSE.block(0, 0, 3, 3);
-//   // mc_rtc::log::info("Dim of  LINEAR LAMBDA = {} x {}", LINEAR_LAMBDA.cols(), LINEAR_LAMBDA.rows());
-//   // return 1/(normal_vector.transpose()*LAMBDA*normal_vector);
-//   return 1/(normal_vector.transpose()*LINEAR_LAMBDA_INVERSE*normal_vector);
-// }
-
 const rbd::MultiBodyConfig Get_In_Position_Task::encoders_values_to_mbc(
   const std::vector<double> &encoderValues,
   mc_control::fsm::Controller & ctl_) const
@@ -655,11 +485,6 @@ const Eigen::VectorXd Get_In_Position_Task::compute_emass_gradient_backward_diff
     grad(j,0) = (m_q - backward_effective_mass)/epsilon;
     j+=1;
       
-      // mc_rtc::log::info("forward_mbc_q[i] = {}", forward_mbc.q.at(i).at(0));
-      // mc_rtc::log::info("backward_mbc_q[i] = {}", backward_mbc.q.at(i).at(0));
-      // mc_rtc::log::info("---------------------");
-      // mc_rtc::log::info("grad[{}] = {}", 6+j, grad_res);
-      // backward_mbc.q.at(i).at(0) = mbc.q.at(i).at(0);
   }
   return grad;
 }
@@ -717,11 +542,6 @@ const Eigen::VectorXd Get_In_Position_Task::compute_emass_gradient_three_point_b
     grad(j,0) = backward_effective_mass/(2*epsilon);
     j+=1;
       
-      // mc_rtc::log::info("forward_mbc_q[i] = {}", forward_mbc.q.at(i).at(0));
-      // mc_rtc::log::info("backward_mbc_q[i] = {}", backward_mbc.q.at(i).at(0));
-      // mc_rtc::log::info("---------------------");
-      // mc_rtc::log::info("grad[{}] = {}", 6+j, grad_res);
-      // backward_mbc.q.at(i).at(0) = mbc.q.at(i).at(0);
   }
   return grad;
 }
@@ -790,17 +610,7 @@ const Eigen::VectorXd Get_In_Position_Task::compute_emass_gradient_central_diffe
         unusable_dofs.push_back(ctl_.robot().mb().joint(i).name());
       }
     }
-    // std::map<std::string, double> encoder_values_map;
-    // for (size_t i = 0; i < std::size(encoderValues); ++i)
-    // {
-    //   encoder_values_map[ctl_.robot().refJointOrder().at(i)] = encoderValues.at(i);
-    // }
-    // std::vector<double> reorg_encoder_values;
-    // for (size_t i = 0; i < std::size(usable_dofs); ++i)
-    // {
-    //   reorg_encoder_values.at(i) = encoder_values_map.at(usable_dofs.at(i));
-    // }    
-
+  
     double forward_effective_mass = 0;
     double backward_effective_mass = 0;
 
@@ -869,70 +679,6 @@ const double Get_In_Position_Task::compute_effective_mass_naive(rbd::MultiBodyCo
     std::cout << "}" << std::endl;
   }
   std::cout << "}" << std::endl;
-  // std::cout << "n = " << n << std::endl;
-
-  // std::cout << "Q = {"  << std::endl;
-  // for (size_t i = 0; i < std::size(Q); ++i){
-  //   std::cout << Q.at(i) << std::endl;
-  // }
-  // std::cout << "}"  << std::endl;
-  // Eigen::MatrixXd M = _dynamicsConstraint->motionConstr().fd().H();
-  //   // std::cout << "M  = \n" << M << "\n";
-  // Eigen::MatrixXd M_inverse = M.inverse();
-  // // std::cout << "Creating my Jacobian" << std::endl;
-  // rbd::Jacobian jac(robot_mb, _hammer_head_frame_name, _jacobian_verbose_active);
-  // auto world_frame_jacobian = jac.jacobian(robot_mb,mbc);
-  // // std::cout << "Created world frame jacobian" << std::endl;
-
-  // Eigen::MatrixXd full_world_frame_jacobian(6, ctl_.robot().mb().nrDof());
-  // jac.fullJacobian(robot_mb, world_frame_jacobian, full_world_frame_jacobian);
-  // // std::cout << "Projected my world frame Jacobian" << std::endl;
-  
-  // Eigen::MatrixXd linear_jacobian = full_world_frame_jacobian.bottomRows(3);
-  // std::cout << "Created linear jacobian" << std::endl;
-
-  // Eigen::MatrixXd angular_jacobian = full_world_frame_jacobian.bottomRows(3);
-  // std::cout << "Created angular jacobian" << std::endl;
-
-  // std::cout << "dim angular jacobian = " << angular_jacobian.rows() << " x " << angular_jacobian.cols() << std::endl;
-  // Eigen::MatrixXd pseudo_inverted_angular_jacobian = angular_jacobian.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(Eigen::MatrixXd::Identity(angular_jacobian.rows(), angular_jacobian.rows()));
-  // std::cout << "Created pseudo inverse" << std::endl;
-  
-  // auto pseudo_inverted_angular_jacobian_third_column = pseudo_inverted_angular_jacobian.col(3 - 1);
-  // std::cout << "Created pseudo inverse angular jac" << std::endl;
-
-  // Eigen::MatrixXd delta_x_omega(3, 1);
-  // std::cout << "Created delta x omega" << std::endl;
-
-  // delta_x_omega << 0, 0, delta_psi;
-
-  // Eigen::MatrixXd delta_q =  pseudo_inverted_angular_jacobian * delta_x_omega;
-  // std::cout << "Created delta q" << std::endl;e
-
-  // std::cout << "JointConfig = { " << std::endl;
-  // for(size_t i = 0; i < std::size(qf.jointConfig); ++i)
-  // {
-  //   std::cout << qf.jointConfig.at(i) << std::endl;
-  // }
-  // std::cout << "}" << std::endl;
-
-  // std::cout << "delta q = " << delta_q << std::endl;
-
-  // auto incremented_robot_config = qf.q;
-  // incremented_robot_config.at(37);
-  
-  // std::cout << "Joint " << ctl_.robot().mb().jointIndexByName("LWRY") << std::endl;
-  // std::cout << "Joint value at 37 : " << Q.at(37 + 1) << std::endl;
-
-  
-  // std::cout << M_inverse << std::endl;
-  // std::cout << "Created M inverse" << std::endl;
-  // std::cout << "Size M^-1 = " << M_inverse.rows() << " x " << M_inverse.cols() << std::endl;
-  // writeEigenMatrixToCSV(M, "MassMatrixMcRTC.csv");
-  // writeEigenMatrixToCSV(full_world_frame_jacobian, "full_world_frame_jacobian.csv");
-  // std::cout << M << std::endl;
-  
-  
   
   double inner_sum = 0;
   double J_nu_3_j = 0;
@@ -942,83 +688,6 @@ const double Get_In_Position_Task::compute_effective_mass_naive(rbd::MultiBodyCo
   double outer_sum = 0;
   double effective_mass = 0;
   double delta_psi_tot = 0;
-  // auto q_start = qf;
-  // std::cout << "Starting double sum" << std::endl;
-  
-  // while(delta_psi_tot < 2*M_PI)
-  // {
-    // std::cout << "delta_psi_tot = " << delta_psi_tot << std::endl;
-    //Create everything
-
-    // std::cout << M_inverse.row(0) << std::endl;
-    // world_frame_jacobian = jac.jacobian(robot_mb,q_test);
-
-    // Eigen::MatrixXd full_world_frame_jacobian(6, robot_mb.nrDof());
-    // jac.fullJacobian(robot_mb, world_frame_jacobian, full_world_frame_jacobian);
-    
-    // Eigen::MatrixXd linear_jacobian = full_world_frame_jacobian.bottomRows(3);
-
-    // Eigen::MatrixXd angular_jacobian = full_world_frame_jacobian.bottomRows(3);
-
-    // std::cout << "dim angular jacobian = " << angular_jacobian.rows() << " x " << angular_jacobian.cols() << std::endl;
-    // Eigen::MatrixXd pseudo_inverted_angular_jacobian = angular_jacobian.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(Eigen::MatrixXd::Identity(angular_jacobian.rows(), angular_jacobian.rows()));
-    
-    // pseudo_inverted_angular_jacobian_third_column = pseudo_inverted_angular_jacobian.col(3 - 1);
-
-    // Eigen::MatrixXd delta_x_omega(3, 1);
-
-    // Eigen::MatrixXd pseudo_inverted_full_jac = full_world_frame_jacobian.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(Eigen::MatrixXd::Identity(full_world_frame_jacobian.rows(), full_world_frame_jacobian.rows()));
-    // delta_x_omega << 0, 0, delta_psi;
-    // Eigen::MatrixXd delta_x(6, 1);
-    // delta_x << 0, 0, 0, 0, 0, delta_psi;
-    // Eigen::MatrixXd delta_q =  pseudo_inverted_angular_jacobian * delta_x_omega;
-    // Eigen::MatrixXd delta_q =  pseudo_inverted_full_jac* delta_x;
-
-
-    // Compute Outer sum
-    // outer_sum = 0;
-    // for(int k=0; k <= ctl.robot().mb().nrDof() - 1 ; ++k)
-    // {
-    //   // Inner sum
-    //   inner_sum = 0;
-    //   for(int j=0; j <= ctl.robot().mb().nrDof() - 1; ++j)
-    //   { 
-    //     J_nu_3_j = linear_jacobian(3-1,j);
-    //     // std::cout << "Computed linear jac (3-1, "  << j  << ") = " << linear_jacobian(3-1, j) << std::endl;
-    //     M_inverse_j_k = M_inverse(j, k);
-    //     // std::cout << "M_inverse (" << j << "," << k << ") = " << M_inverse_j_k << std::endl;
-    //     inner_sum += J_nu_3_j * M_inverse_j_k;
-    //   }
-    //   J_nu_3_k = linear_jacobian(3-1, k);
-    //   outer_sum += inner_sum*J_nu_3_k;
-    // }
-
-    // std::cout << "Testing effective mass : "<< 1/outer_sum << std::endl;
-    // if(1/outer_sum > effective_mass)
-    // {
-    //   effective_mass = 1/outer_sum;
-    // }
-
-    // std::cout << "deltaq =  " << delta_q << std::endl;
-
-    // printConfig(q_test, "q_test before = {");        
-    // increment q_test by delta q
-    // int L = 0;
-    // int m = 0;
-    // for (size_t i = 0; i < std::size(q_test.q); ++i)
-    // {
-    //   for(size_t j = 0; j < std::size(q_test.q.at(i)); ++j)
-    //   {
-    //     q_test.q.at(i).at(j) += delta_q(j+L, 0);
-    //     m += 1;
-    //   }
-    //   L += m;
-    //   m = 0;
-    // }
-
-    // printConfig(q_test, "q_test after = {");        
-  //   delta_psi_tot += delta_psi;
-  // }
   return 1/outer_sum;
 }
 
@@ -1235,38 +904,6 @@ const Eigen::VectorXd Get_In_Position_Task::reorganized_gradient(const Eigen::Ve
   {
     res(i, 0) = res_map.at(ctl_.robot().refJointOrder().at(i));
   }
-  // mc_rtc::log::info("grad size = {}", std::size(gradient));
-  // for(size_t i = 0; i < std::size(ctl_.robot().encoderVelocities()); ++i)
-  // {
-  //   if(i >= 0 && i < 6)
-  //   {
-  //     res(i, 0) = gradient(i+12, 0);
-  //   }
-  //   else if (i >= 6 && i < 12) 
-  //   {  
-  //     res(i, 0) = gradient(i, 0);
-  //   }
-  //   else if (i >= 12 && i < 17) 
-  //   {
-  //     res(i, 0) = gradient(i+6, 0);
-  //   }
-  //   else if (i >= 17 && i < 26) 
-  //   {
-  //     res(i, 0) = gradient(i+15, 0);
-  //   }
-  //   else if (i>= 26 && i < 35) 
-  //   {
-  //     res(i, 0) = 0;
-  //   }
-  //   else if (i >= 35 && i < 44) 
-  //   {
-  //     res(i, 0) = gradient(i-12, 0);
-  //   }
-  //   else if(i >= 44 && i < std::size(ctl_.robot().encoderVelocities()))
-  //   {
-  //     res(i, 0) = 0;
-  //   }
-  // }
   return res;
 }
 
@@ -1319,25 +956,6 @@ const double Get_In_Position_Task::emass_time_derivative_with_mbc_alpha(const Ei
 void Get_In_Position_Task::load_params()
 {
   std::string magic_values_key = "magic_values";
-  // _magic_posture_task_weight = _config(magic_values_key)("magic_posture_task_weight");
-  // _magic_posture_task_stiffness = _config(magic_values_key)("magic_posture_task_stiffness");
-
-  // _magic_effective_mass_maximization_task_weight = _config(magic_values_key)("magic_effective_mass_maximization_task_weight");
-
-  // _magic_vector_orientation_task_weight = _config(magic_values_key)("magic_vector_orientation_task_weight");
-  // _magic_vector_orientation_task_stiffness = _config(magic_values_key)("magic_vector_orientation_task_stiffness");
-  // _magic_vector_orientation_task_damping = _config(magic_values_key).has("magic_vector_orientation_task_damping") ? _config(magic_values_key)("magic_vector_orientation_task_damping") : 2.0 * sqrt(_magic_vector_orientation_task_stiffness);
-
-  // _magic_BSpline_task_dimweight_rx = _config(magic_values_key)("magic_BSpline_task_dimweight_rx");
-  // _magic_BSpline_task_dimweight_ry = _config(magic_values_key)("magic_BSpline_task_dimweight_ry");
-  // _magic_BSpline_task_dimweight_rz = _config(magic_values_key)("magic_BSpline_task_dimweight_rz");
-  // _magic_BSpline_task_dimweight_tx = _config(magic_values_key)("magic_BSpline_task_dimweight_tx");
-  // _magic_BSpline_task_dimweight_ty = _config(magic_values_key)("magic_BSpline_task_dimweight_ty");
-  // _magic_BSpline_task_dimweight_tz = _config(magic_values_key)("magic_BSpline_task_dimweight_tz");
-  // _magic_BSpline_max_duration = _config(magic_values_key)("magic_BSpline_max_duration");
-  // _magic_BSpline_task_stiffness = _config(magic_values_key)("magic_BSpline_task_stiffness");
-  // _magic_BSpline_task_damping = _config(magic_values_key).has("magic_BSpline_task_damping") ? _config(magic_values_key)("magic_BSpline_task_damping") : 2.0 * sqrt(_magic_BSpline_task_stiffness);
-  // _magic_BSpline_task_weight = _config(magic_values_key)("magic_BSpline_task_weight");
 
   _logging_freq = _config(magic_values_key)("logging_freq");
 
@@ -1347,9 +965,7 @@ void Get_In_Position_Task::load_params()
   _gripper_task_goal_error = _config(magic_values_key)("gripper_task_goal_error");
   _gripper_task_K_scaling_factor = _config(magic_values_key)("gripper_task_s");
 
-  //_magic_hitting_target =  _config(magic_values_key)("hitting_target");
   // ------------------------ Loading init and start velocities, accelerations and jerks ---------------------------
-
 
   std::string curve_constraints_key = "curve_constraints";
   std::string linear_velocity_key = "linear_velocity";
@@ -1361,10 +977,6 @@ void Get_In_Position_Task::load_params()
   std::string init_key = "init";
   std::string end_key = "end";
   //_magic_normal_final_velocity = _config(curve_constraints_key)("magic_normal_final_velocity");
-
-  // _constr.init_vel.x() = _config(curve_constraints_key)(linear_velocity_key)(0);
-  // _constr.init_vel.y() = _config(curve_constraints_key)(linear_velocity_key)(1);
-  // _constr.init_vel.z() = _config(curve_constraints_key)(linear_velocity_key)(2);
 
   _constr.init_acc.x() = _config(curve_constraints_key)(linear_acceleration_key)(x_key)(init_key);
   _constr.init_acc.y() = _config(curve_constraints_key)(linear_acceleration_key)(y_key)(init_key);

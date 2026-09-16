@@ -23,6 +23,7 @@ void Post_Impact_Task::start(mc_control::fsm::Controller & ctl_)
     // _postureTask->weight(_magic_posture_task_weight);
     ctl.getPostureTask(ctl.robot().name())->stiffness(_magic_posture_task_stiffness);
     ctl.getPostureTask(ctl.robot().name())->weight(_magic_posture_task_weight);
+    ctl.getPostureTask(ctl.robot().name())->damping(ctl.base_posture_damping);
 
     _target_velocity = -0.1f*ctl.nail_rot.transpose()*_magic_normal_final_velocity;
     _target_vel = sva::MotionVecd(Eigen::Vector3d::Zero(), _target_velocity);
@@ -83,27 +84,16 @@ bool Post_Impact_Task::run(mc_control::fsm::Controller & ctl_)
 {
     auto & ctl = static_cast<HammeringTaskNew &>(ctl_);
 
-    // log_values(ctl_);
-
-    duration += ctl.solver().dt();
-
-    if (duration > 0.1f)
-    {
-        _transform_task->targetVel(sva::MotionVecd(Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero()));
-    }
-    // Find a better condition than that
-    if(/*ctl.getPostureTask(ctl.robot().name())->speed().norm() < 0.03*//*duration > 0.1f*/_transform_task->eval().norm() < 0.03f){
+    if(_transform_task->eval().norm() < 0.03f){
         output("STOP");
         return true;
     }
-    // return _postureTask->eval().norm() < _magic_posture_task_epsilon && _postureTask->speed().norm() < 0.0003;
     return false;
 }
 
 void Post_Impact_Task::teardown(mc_control::fsm::Controller & ctl_)
 {
     auto & ctl = static_cast<HammeringTaskNew &>(ctl_);
-    // ctl.solver().removeTask(_postureTask);
     ctl.solver().removeTask(_transform_task);
 }
 

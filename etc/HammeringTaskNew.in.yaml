@@ -16,7 +16,7 @@ robots:
     init_pos:
       translation:
       - 0.4
-      - 0.4
+      - 0.3
       - 0.9
       rotation:
       - 0
@@ -59,9 +59,10 @@ global_controller_params:
     K: 0.5
   hitting_tasks_paramater:
     magic_BSpline_task_weight: 500
-    magic_BSpline_max_duration: 2
-    magic_BSpline_task_stiffness: 100
-    magic_BSpline_task_damping: 40
+    magic_BSpline_max_duration: 5
+    magic_bspline_waypoint_height: 0.5
+    magic_BSpline_task_stiffness: 10
+    magic_BSpline_task_damping: 8
     magic_BSpline_task_dimweight_tx: 1
     magic_BSpline_task_dimweight_ty: 1
     magic_BSpline_task_dimweight_tz: 1
@@ -73,8 +74,8 @@ global_controller_params:
     magic_effective_mass_maximization_task_weight: 0
     magic_posture_task_weight_local: 1
     magic_vector_orientation_task_weight: 500 
-    magic_vector_orientation_task_stiffness: 100 
-    magic_vector_orientation_task_damping: 40 
+    magic_vector_orientation_task_stiffness: 7
+    magic_vector_orientation_task_damping: 5
     gripper_task_min_stiffness: 500
     gripper_task_max_stiffness: 500
     gripper_task_goal_error: 0.0001
@@ -84,7 +85,7 @@ global_controller_params:
       magic_final_velocity:
       - 0
       - 0
-      - -1    
+      - -0.5 
       magic_init_velocity:
       - 0
       - 0
@@ -142,8 +143,8 @@ states:
     magic_values:
       magic_BSpline_task_weight: 500
       magic_BSpline_max_duration: 2
-      magic_BSpline_task_stiffness: 500
-      magic_BSpline_task_damping: 40
+      magic_BSpline_task_stiffness: 10
+      magic_BSpline_task_damping: 5
       magic_BSpline_task_dimweight_tx: 1
       magic_BSpline_task_dimweight_ty: 1
       magic_BSpline_task_dimweight_tz: 1
@@ -155,7 +156,7 @@ states:
       magic_effective_mass_maximization_task_weight: 1
       magic_posture_task_weight_local: 1
       magic_vector_orientation_task_weight: 500
-      magic_vector_orientation_task_stiffness: 100
+      magic_vector_orientation_task_stiffness: 7
       gripper_task_min_stiffness: 500
       gripper_task_max_stiffness: 500
       gripper_task_goal_error: 0.0001
@@ -166,7 +167,7 @@ states:
       magic_normal_final_velocity:
       - 0
       - 0
-      - -1
+      - -0.5
       linear_velocity:
       - 0
       - 0
@@ -199,7 +200,7 @@ states:
       magic_normal_final_velocity:
       - 0
       - 0
-      - -0.0001
+      - -0.5
       linear_velocity:
       - 0
       - 0
@@ -279,8 +280,9 @@ transitions:
 init: Hammer::HammeringFSM
 hrp5_p:
   posture:
-    stiffness: 10
+    stiffness: 1
     weight: 5
+    damping: 15
 ObserverPipelines:
   name: ObserverPipeline
   gui: true

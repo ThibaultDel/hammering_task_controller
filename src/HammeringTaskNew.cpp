@@ -330,10 +330,11 @@ void HammeringTaskNew::addToGUI()
       ,[this](const Eigen::Vector3d & Bspline_param) {_magic_BSpline_task_weight=Bspline_param(0);
                                                         _magic_BSpline_task_stiffness=Bspline_param(1);
                                                         _magic_BSpline_task_damping=Bspline_param(2);}),
-      mc_rtc::gui::ArrayInput("Bspline params (duration final_velocity)"
-      ,[this]() { return Eigen::Matrix<double, 2, 1>{this->_magic_BSpline_max_duration,this->_magic_normal_final_velocity};}
-      ,[this](const Eigen::Matrix<double, 2, 1> & Bspline_param) {_magic_BSpline_max_duration=Bspline_param(0);
+      mc_rtc::gui::ArrayInput("Bspline params (duration final_velocity height)"
+      ,[this]() { return Eigen::Vector3d{this->_magic_BSpline_max_duration,this->_magic_normal_final_velocity,this->_magic_bspline_waypoint_height};}
+      ,[this](const Eigen::Vector3d & Bspline_param) {_magic_BSpline_max_duration=Bspline_param(0);
                                                         _magic_normal_final_velocity=Bspline_param(1);
+                                                        _magic_bspline_waypoint_height=Bspline_param(2);
                                                         _magic_final_velocity=_magic_final_velocity*_magic_normal_final_velocity;}),
       mc_rtc::gui::ArrayInput("Bspline init velocity (Vx Vy Vz)"
       ,[this]() { return this->_magic_init_vel;}
@@ -365,6 +366,8 @@ void HammeringTaskNew::addToGUI()
                                                         
   this->gui()->addElement({},
     mc_rtc::gui::Checkbox(linear_constraint_button_name, [this]() { return linear_impulsive_torque_ctr_flag; }, [this]() { linear_impulsive_torque_ctr_flag = !linear_impulsive_torque_ctr_flag; })
+    ,mc_rtc::gui::Label("Force threshold triggered", [this]() -> bool { return impact_detected;})
+    ,mc_rtc::gui::Label("Constraint activation", [this]() -> bool { return impulsive_constraint_flag;})
   );
 
   using Color = mc_rtc::gui::Color;
@@ -619,7 +622,6 @@ void HammeringTaskNew::load_parameters()
   std::string nail_frame_key = "nail";
  config_(global_controller)(frames_key)(hammerhead_frame_key, hammer_head_frame_name);
  config_(global_controller)(frames_key)(nail_frame_key, nail_frame_name);
- config_(global_controller)(frames_key)(nail_frame_key, nail_frame_name);
 
   // ------------------------ Loading magic values ---------------------------
 
@@ -649,6 +651,7 @@ void HammeringTaskNew::load_parameters()
   std::string posture_key = "posture";
   base_posture_stiffness = config_(robot_key)(posture_key)("stiffness");
   base_posture_weight = config_(robot_key)(posture_key)("weight");
+  base_posture_damping = config_(robot_key)(posture_key)("damping");
 
   // ------------------------ Loading stabilizer parameters ---------------------------
   std::string global_control_param_key = "global_controller_params";
@@ -708,6 +711,7 @@ void HammeringTaskNew::load_parameters()
   _magic_BSpline_task_damping = config_(global_control_param_key)(hitting_tasks_paramater).has("magic_BSpline_task_damping") ? config_(global_control_param_key)(hitting_tasks_paramater)("magic_BSpline_task_damping") : 2.0 * sqrt(_magic_BSpline_task_stiffness);
   _magic_BSpline_task_weight = config_(global_control_param_key)(hitting_tasks_paramater)("magic_BSpline_task_weight");
   _magic_final_velocity = config_(global_control_param_key)(hitting_tasks_paramater)(curve_constraints_key)("magic_final_velocity");
+  _magic_bspline_waypoint_height = config_(global_control_param_key)(hitting_tasks_paramater)("magic_bspline_waypoint_height");
   _magic_init_vel= config_(global_control_param_key)(hitting_tasks_paramater)(curve_constraints_key)("magic_init_velocity");
   
 }

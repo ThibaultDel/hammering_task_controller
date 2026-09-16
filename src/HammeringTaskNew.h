@@ -92,6 +92,7 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
     std::vector<std::vector<double>> base_posture_vector;
     double base_posture_weight = 1.0f;
     double base_posture_stiffness = 1.0f;
+    double base_posture_damping = 1.0f;
 
     int trajectories_executed = 0;
 
@@ -155,6 +156,7 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
     double _magic_vector_orientation_task_damping = 1.0f;
 
     double _magic_normal_final_velocity = 1.0f;//
+    double _magic_bspline_waypoint_height = 0.4f;
     Eigen::Vector3d _magic_final_velocity = {0, 0, 0};
     Eigen::Vector3d _magic_hitting_target = {0, 0, 0};
     // ------------------------------ Parameters ---------------------------------------------
