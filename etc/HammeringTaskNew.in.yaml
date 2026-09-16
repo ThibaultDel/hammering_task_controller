@@ -41,7 +41,7 @@ global_controller_params:
   magic_values:
     magic_force_threshold: 1
     magic_force_threshold_nail: 100
-    magic_force_threshold_sensor: 1000
+    magic_force_threshold_sensor: 250
     max_number_of_hits: 1
   hitting_constraint_paramater:
     c_res: 1   

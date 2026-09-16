@@ -316,9 +316,9 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
   ctl.vector_orientation_error = vector_error(-ctl.nail_normal_vector_world_frame, 
                                             (current_hammer_rotation.transpose()*ctl.normal_vector_to_align_in_hammerhead_frame).normalized());
 
-  _gradient_of_m = compute_emass_gradient_three_point_backward_difference_mbc(_new_mbc,
-                                                                            ctl, 
-                                                                ctl.nail_normal_vector_world_frame);
+  //_gradient_of_m = compute_emass_gradient_three_point_backward_difference_mbc(_new_mbc,
+  //                                                                          ctl, 
+  //                                                              ctl.nail_normal_vector_world_frame);
 
   // "Modified" posture task or trick
   int number_of_joints = ctl.robot().tvmRobot().qJoints()->size();
@@ -330,13 +330,13 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
     joint_selector(joint_index, joint_index) = 1.0;
   }
 
-  Eigen::VectorXd feedforward_term = (ctl._magic_effective_mass_maximization_task_weight/ctl._magic_posture_task_weight) * joint_selector * _gradient_of_m.tail(ctl.robot().tvmRobot().qJoints()->size());
-  ctl.getPostureTask(ctl.robot().name())->refAccel(feedforward_term);
+  //Eigen::VectorXd feedforward_term = (ctl._magic_effective_mass_maximization_task_weight/ctl._magic_posture_task_weight) * joint_selector * _gradient_of_m.tail(ctl.robot().tvmRobot().qJoints()->size());
+  //ctl.getPostureTask(ctl.robot().name())->refAccel(feedforward_term);
 
   auto q_d = ctl.robot().tvmRobot().alpha()->value();
   Eigen::VectorXd q_d_selected = q_d.tail(number_of_joints);
 
-  ctl.eff_mass_diff_checker = _gradient_of_m.transpose()*q_d;
+  //ctl.eff_mass_diff_checker = _gradient_of_m.transpose()*q_d;
 
   // End state at impact
   //ctl.impact_detected = abs(ctl.nail_force_vector.x()) >= ctl.magic_force_threshold_nail || 
@@ -355,26 +355,6 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
   }
 
   //log bspline point
-
-  if(ctl.text_log_flag){
-    ctl.text_log_flag=0;
-    int bspline_number_of_points=1000;
-    _BSplineVel->spline().samplingPoints(bspline_number_of_points);
-    std::ofstream outputFile("/home/thibault/bspline.txt");
-
-    if (!outputFile.is_open()) {
-        mc_rtc::log::info("Error: Could not create or open the file!");
-    }
-
-    for (const auto& vec : _BSplineVel->spline().sampleTrajectory()) {
-        outputFile << vec.transpose() << "a";
-    }
-
-    // 4. Close the file stream to save changes and free resources
-    outputFile.close();
-    
-    mc_rtc::log::info("b spline text file written");
-  }
 
   if(_total_time_elapsed > (ctl._magic_BSpline_max_duration/*+1.f*/) && stop_height_flag){
     ctl.comparisonRobots_->robot().posW(sva::PTransformd(ctl.floatingBaseSensor_.orientation(), ctl.floatingBaseSensor_.position()));

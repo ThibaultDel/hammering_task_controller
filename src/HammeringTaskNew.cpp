@@ -354,6 +354,9 @@ void HammeringTaskNew::addToGUI()
                                                         _vp=Impusle_constraint_param(3);
                                                         _lambda_high=Impusle_constraint_param(4);
                                                         _lambda_low=Impusle_constraint_param(5);}),
+      mc_rtc::gui::NumberInput("Force threshold"
+      ,[this]() { return magic_force_threshold_sensor;}
+      ,[this](const double & force_sensor_theshold) {magic_force_threshold_sensor=force_sensor_theshold;}),
       mc_rtc::gui::ArrayInput("Linear imptorque ctR parameters (Activation heigth,tau high multiplier,K)"
       ,[this]() { return Eigen::Vector3d{this->_Activation_height,this->_tau_high_mulitplier,this->_K};}
       ,[this](const Eigen::Vector3d & Linear_impulsive_constraint) {_Activation_height = Linear_impulsive_constraint(0);
@@ -424,6 +427,7 @@ void HammeringTaskNew::addToGUI()
 
   AxisConfig xAxis("t [s]");
   AxisConfig yAxis("Torque [N.m] / Deriv [N.m/s]");
+  AxisConfig yforceAxis("Torque [N]");
 
   // GUI controls for Plots tab
   this->gui()->addElement({"Plots"},
@@ -435,7 +439,9 @@ void HammeringTaskNew::addToGUI()
       [this](const std::string & m) { selected_plot_mode_ = m; }),
     mc_rtc::gui::NumberInput("Live plot interval [s]",
       [this]() { return plot_dt_; },
-      [this](double dt) { plot_dt_ = std::max(0.01, dt); })
+      [this](double dt) { plot_dt_ = std::max(0.01, dt); }),
+    mc_rtc::gui::Label("Force threshold triggered", [this]() -> bool
+      { return impact_detected;})
   );
 
   // Standard joint plots
@@ -482,6 +488,11 @@ void HammeringTaskNew::addToGUI()
     make_curve("Upper Limit", [this, dof_lsr, get_plot_upper]() { return get_plot_upper(dof_lsr); }, Color::Cyan, Style::Dotted),
     make_curve("Lower Limit", [this, dof_lsr, get_plot_lower]() { return get_plot_lower(dof_lsr); }, Color::Cyan, Style::Dotted)
   );
+    this->gui()->addXYPlot(
+      "LHand sensor force",
+      xAxis, yforceAxis,
+      make_curve("force(N)", [this]{return robot().forceSensor("LeftHandForceSensor").force().norm();}, Color::Red, Style::Solid)
+  );                 
 
   // Custom selected joint plot
   this->gui()->addXYPlot(
