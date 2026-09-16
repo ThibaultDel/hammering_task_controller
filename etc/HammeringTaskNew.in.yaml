@@ -60,7 +60,7 @@ global_controller_params:
   hitting_tasks_paramater:
     magic_BSpline_task_weight: 500
     magic_BSpline_max_duration: 2
-    magic_BSpline_task_stiffness: 500
+    magic_BSpline_task_stiffness: 100
     magic_BSpline_task_damping: 40
     magic_BSpline_task_dimweight_tx: 1
     magic_BSpline_task_dimweight_ty: 1
@@ -70,11 +70,11 @@ global_controller_params:
     magic_BSpline_task_dimweight_rz: 0
     magic_posture_task_weight: 1 
     magic_posture_task_stiffness: 1 
-    magic_effective_mass_maximization_task_weight: 1 
+    magic_effective_mass_maximization_task_weight: 0
     magic_posture_task_weight_local: 1
     magic_vector_orientation_task_weight: 500 
     magic_vector_orientation_task_stiffness: 100 
-    magic_vector_orientation_task_damping: 100 
+    magic_vector_orientation_task_damping: 40 
     gripper_task_min_stiffness: 500
     gripper_task_max_stiffness: 500
     gripper_task_goal_error: 0.0001
