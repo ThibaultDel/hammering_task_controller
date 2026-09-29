@@ -10,9 +10,7 @@
 
 void Get_In_Position_Task::configure(const mc_rtc::Configuration & config)
 {
-   _config.load(config);
-    // mc_rtc::log::info("Get_In_Position_Task configure function called with config : \n{}", config.dump(true, true));
-    
+  _config.load(config);  
 }
 
 void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
@@ -30,14 +28,9 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   ctl.gui()->addElement({}, mc_rtc::gui::Button(ctl.stop_hammering_button_name, [this]() { stop = true; }));
 
   // ------------------------- BSplineTrajectoryTask ----------------------------
-  
-  // _constr.end_vel.x() = _magic_normal_final_velocity*ctl.nail_normal_vector_world_frame.x();
-  // _constr.end_vel.y() = _magic_normal_final_velocity*ctl.nail_normal_vector_world_frame.y();
-  // _constr.end_vel.z() = _magic_normal_final_velocity*ctl.nail_normal_vector_world_frame.z();
   _constr.init_vel.x()=ctl._magic_init_vel(0);
   _constr.init_vel.y()=ctl._magic_init_vel(1);
   _constr.init_vel.z()=ctl._magic_init_vel(2);
-  
   
   _constr.end_vel = ctl.nail_rot.transpose()*ctl._magic_final_velocity;
 
@@ -47,11 +40,10 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   // The target is the translation of the nail
   _nail_point = ctl._magic_hitting_target;
   _end_point = _nail_point + Eigen::Vector3d(0, 0, 0);
-  _posWp = {ctl.robot().frame(ctl.hammer_head_frame_name).position().translation(),_nail_point};
+  _posWp = {};
 
   // _end_point[2] += 0.02;
   // _target = sva::PTransformd(_end_point);
-  // _target = sva::PTransformd(Eigen::Quaterniond(0.0f, 0.708, 0.0f, -0.705)) *sva::PTransformd(_end_point);//* sva::PTransformd(Eigen::Vector3d(0.5, 0.2, 1));
   _target = sva::PTransformd(sva::RotX(M_PI)) * sva::PTransformd(sva::RotY(M_PI/2)) * sva::PTransformd(ctl.robots().robot(ctl.nail_robot_name).frame(ctl.nail_frame_name).position().rotation()) *sva::PTransformd(_end_point);//* sva::PTransformd(Eigen::Vector3d(0.5, 0.2, 1));
 
   // The curve has at least 2 control points : the first one being the initial translation of the frame and the second 
@@ -75,7 +67,6 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   _BSplineVel->dimWeight(ctl.dimweights);
   ctl.solver().addTask(_BSplineVel);
   ctl.bspline_active_ = true;
-
   mc_rtc::log::info("Degree of BSpline : {}", _BSplineVel->spline().get_bezier()->degree());
 
   // ------------------------- Posture task tunnning ----------------------------
@@ -83,6 +74,12 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   ctl.getPostureTask(ctl.robot().name())->stiffness(_magic_posture_task_stiffness);
   ctl.getPostureTask(ctl.robot().name())->weight(ctl._magic_posture_task_weight);
 
+  // ------------------------- Posture task mass maximization ----------------------------
+
+  Effective_mass_maximization_PostureTask = std::make_shared<mc_tasks::PostureTask>(ctl.solver(),ctl.robot().robotIndex(),ctl._effective_mass_posture_stiffness,ctl._effective_mass_posture_weight);
+  //ctl.solver().addTask(Effective_mass_maximization_PostureTask);
+
+  
   // ------------------------- Gripper task ----------------------------
 
   // gripper_task->target(sva::PTransformd(sva::RotY(M_PI)) * sva::PTransformd(sva::RotZ(M_PI/2)) * sva::PTransformd(Eigen::Vector3d(0 ,0, 0.025)) * ctl.robot("box").frame("Right").position());
@@ -154,39 +151,26 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
 
   // ------------------------- Logging values ----------------------------
 
-  if (ctl.bspline_active_)
-  {
-    ctl.hammer_tip_reference_velocity_vector = bezier_vel_from_task(_BSplineVel,
-                                                                  ctl);
-  } else
-  {
-    ctl.hammer_tip_reference_velocity_vector = _transform_task->refVelB().linear();
-  }
-
   ndcurves::bezier_curve bezier_curve = *_BSplineVel->spline().get_bezier();
   if (ctl.bspline_active_)
   {
+    ctl.hammer_tip_reference_velocity_vector = bezier_vel_from_task(_BSplineVel , ctl);
     ctl.hammer_tip_reference_position_vector = bezier_curve(_total_time_elapsed);
-  } else
-  {
-    ctl.hammer_tip_reference_position_vector = gripper_task->target().translation();
-  }
-  ctl.projected_momentum_of_hammer_tip = compute_projected_momentum(ctl.effective_mass,
-                                                                    ctl.hammer_tip_actual_velocity_vector, 
-                                                                    ctl.nail_normal_vector_world_frame);
-  ctl.bspline_tracking_error = ctl.hammer_tip_actual_position_vector - ctl.hammer_tip_reference_position_vector;
-  if (ctl.bspline_active_)
-  {
     ctl.bspline_eval = _BSplineVel->evalTracking();
     ctl.bspline_eval_norm = _BSplineVel->evalTracking().norm();
   } else
   {
+    ctl.hammer_tip_reference_velocity_vector = _transform_task->refVelB().linear();
+    ctl.hammer_tip_reference_position_vector = gripper_task->target().translation();
+    ctl.projected_momentum_of_hammer_tip = compute_projected_momentum(ctl.effective_mass,
+                                                                    ctl.hammer_tip_actual_velocity_vector, 
+                                                                    ctl.nail_normal_vector_world_frame);
+    ctl.bspline_tracking_error = ctl.hammer_tip_actual_position_vector - ctl.hammer_tip_reference_position_vector;
     ctl.bspline_eval = Eigen::Vector6d::Zero();
     ctl.bspline_eval_norm = 0;
   }
-  
-    // ------------------------- Impuslvie cosntraint activation ----------------------------
 
+    // ------------------------- Impuslvie cosntraint activation ----------------------------
 
   if (ctl.hammer_tip_reference_velocity_vector.dot(ctl.nail_normal_vector_world_frame)<=0 && !ctl.impulsive_constraint_flag) // activation of the impulseconstraint after distance 
   {
@@ -195,7 +179,6 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
       assert(ctl._tau_high_mulitplier>=1 && "_tau_high_mulitplier must be at least 1");
       ctl.solver().addConstraintSet(ctl.impulseConstraint);
   }
-
   
   Eigen::Matrix3d current_hammer_rotation = ctl.robot().frame(ctl.hammer_head_frame_name).position().rotation();
   ctl.vector_orientation_error = vector_error(-ctl.nail_normal_vector_world_frame, 
@@ -203,10 +186,6 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
 
   // ------------------------- Effective mass maximization task update ----------------------------
   // See Jimmy paper to understand why we use posture task
-
-  //_gradient_of_m = compute_emass_gradient_three_point_backward_difference_mbc(_new_mbc,
-  //                                                                          ctl, 
-  //                                                              ctl.nail_normal_vector_world_frame);
 
   int number_of_joints = ctl.robot().tvmRobot().qJoints()->size();
 
@@ -217,8 +196,14 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
     joint_selector(joint_index, joint_index) = 1.0;
   }
 
-  //Eigen::VectorXd feedforward_term = (ctl._magic_effective_mass_maximization_task_weight/ctl._magic_posture_task_weight) * joint_selector * _gradient_of_m.tail(ctl.robot().tvmRobot().qJoints()->size());
-  //ctl.getPostureTask(ctl.robot().name())->refAccel(feedforward_term);
+  _gradient_of_m = compute_emass_gradient_backward_difference_mbc(_new_mbc,ctl,ctl.nail_normal_vector_world_frame,mass_maximization_active_joints);
+
+  Eigen::VectorXd feedforward_term = (ctl._magic_effective_mass_maximization_task_weight/ctl._magic_posture_task_weight) * joint_selector * _gradient_of_m.tail(ctl.robot().tvmRobot().qJoints()->size());
+  //mc_rtc::log::info("feed {}",feedforward_term);
+  //ctl.getPostureTask(ctl.robot().name())->refAccel(ctl.getPostureTask(ctl.robot().name())->refAccel()+feedforward_term.cwiseAbs());
+  ctl.getPostureTask(ctl.robot().name())->refAccel(feedforward_term); 
+ 
+  //Effective_mass_maximization_PostureTask->refAccel(feedforward_term);
 
   // ------------------------- Stop hammering conditions  ----------------------------
 
@@ -237,7 +222,7 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
   if(_total_time_elapsed > (ctl._magic_BSpline_max_duration/*+1.f*/) && stop_height_flag){
     ctl.comparisonRobots_->robot().posW(sva::PTransformd(ctl.floatingBaseSensor_.orientation(), ctl.floatingBaseSensor_.position()));
     ctl.comparisonRobots_->robot().mbc().q = ctl.realRobot().mbc().q;
-
+    
     Eigen::Vector3d hammer_normal_world_frame = (ctl.robot().frame(ctl.hammer_head_frame_name).position().rotation().transpose()*Eigen::Vector3d(1, 0, 0)).normalized();
     Eigen::Vector3d hammer_normal_world_frame_bodysensor = (ctl.comparisonRobots_->robot().frame(ctl.hammer_head_frame_name).position().rotation().transpose()*Eigen::Vector3d(1, 0, 0)).normalized();
 
@@ -301,7 +286,6 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
     ctl.previous_hitting_point_error_tilt = (ctl.robot().frame(ctl.hammer_head_frame_name).position().translation() - _nail_point).cwiseAbs();
     ctl.previous_hitting_point_error_bodysensor = (ctl.comparisonRobots_->robot().frame(ctl.hammer_head_frame_name).position().translation() - _nail_point).cwiseAbs();
   }
-
 
   if(stop){
     mc_rtc::log::info("Stop button clicked");
@@ -373,270 +357,63 @@ const double Get_In_Position_Task::compute_projected_momentum(
                           + velocity_vector.z()*normal_vector.z());
 }  // TODO: should this not use the 2-norm?
 
+
 const double Get_In_Position_Task::compute_effective_mass_with_mbc(
-  rbd::MultiBodyConfig mbc, 
-  mc_control::fsm::Controller & ctl_, 
-  const Eigen::Vector3d &normal_vector) const{
-
-  HammeringTaskNew &ctl = static_cast<HammeringTaskNew &>(ctl_);
-    
-  // If you dont put this line the gradient is 0 everywhere because M and J are not updating
-  ctl.robot().forwardKinematics(mbc);                                               
-                                                        
-
-  rbd::MultiBody robot_mb = ctl_.robot().mb();
-  rbd::Jacobian jac(robot_mb, ctl.hammer_head_frame_name);
-  Eigen::MatrixXd world_frame_jacobian = jac.jacobian(robot_mb, mbc);
-
-  Eigen::MatrixXd full_world_frame_jacobian(6, ctl.robot().mb().nrDof());
-  jac.fullJacobian(robot_mb, world_frame_jacobian, full_world_frame_jacobian);
-
-  rbd::ForwardDynamics fd(robot_mb);
-  fd.computeH(robot_mb, mbc);
-  Eigen::MatrixXd M = fd.H();
-
-  const Eigen::MatrixXd linear_jacobian = full_world_frame_jacobian.bottomRows(3);
-
-  const Eigen::Matrix3d LAMBDA = linear_jacobian*M.inverse()*linear_jacobian.transpose();
-
-  return 1/(normal_vector.transpose()*LAMBDA*normal_vector);
-}
-
-const rbd::MultiBodyConfig Get_In_Position_Task::encoders_values_to_mbc(
-  const std::vector<double> &encoderValues,
-  mc_control::fsm::Controller & ctl_) const
+    rbd::MultiBodyConfig mbc,
+    mc_control::fsm::Controller &ctl_,
+    const Eigen::Vector3d &normal_vector) const
 {
-  HammeringTaskNew &ctl = static_cast<HammeringTaskNew &>(ctl_);
-  rbd::MultiBodyConfig mbc_res = ctl.robot().mbc();
-  std::vector<double> q_encoders = encoderValues;
-  std::map<std::string, std::vector<double>> q_mbc_map;
-  std::vector<std::string> ref_joint_order = ctl.robot().refJointOrder();
-  std::map<std::string, double> q_encoders_map;
-  std::map<std::string, std::vector<double>> res;
-  
-      
-  //Convert the encoderValues vector into some mbc.q vector
-  for(size_t i = 0; i < std::size(q_encoders); ++i)
-  {
-    q_encoders_map[ref_joint_order.at(i)] = q_encoders.at(i);
-  }
-
-  for(size_t i = 0; i < std::size(mbc_res.q); ++i)
-  {
-    q_mbc_map[ctl_.robot().mb().joint(i).name()] = mbc_res.q.at(i);
-  }
-
-  for(size_t i = 0; i < std::size(mbc_res.q); ++i)
-  {
-    std::string jointName = ctl_.robot().mb().joint(i).name();
-    try{
-      if (std::size(q_mbc_map.at(jointName)) != 1)
-      {
-        res[jointName] = q_mbc_map.at(jointName);
-      }
-      else
-      {
-        res[jointName] = {q_encoders_map.at(jointName)};
-      }
-    }
-    catch (std::out_of_range){
-      res[jointName] = q_mbc_map.at(jointName);
-    }
-    mbc_res.q[i] = res.at(jointName);
-  }
-  return mbc_res;
-}
-
-const double Get_In_Position_Task::compute_effective_mass_with_encoders(
-  const std::vector<double> &encoderValues,
-  mc_control::fsm::Controller & ctl_, 
-  const Eigen::Vector3d &normal_vector) const{
-
-  HammeringTaskNew &ctl = static_cast<HammeringTaskNew &>(ctl_);
-  rbd::MultiBodyConfig mbc = encoders_values_to_mbc(encoderValues, ctl);
-  ctl_.robot().forwardKinematics(mbc);
-
-
-  rbd::MultiBody robot_mb = ctl_.robot().mb();
-  rbd::Jacobian jac(robot_mb, ctl.hammer_head_frame_name);
-  Eigen::MatrixXd world_frame_jacobian = jac.jacobian(robot_mb, mbc);
-
-  Eigen::MatrixXd full_world_frame_jacobian(6, ctl.robot().mb().nrDof());
-  jac.fullJacobian(robot_mb, world_frame_jacobian, full_world_frame_jacobian);
-
-  Eigen::MatrixXd M = ctl.dynamicsConstraint->motionConstr().fd().H();
-  Eigen::MatrixXd linear_jacobian = full_world_frame_jacobian.bottomRows(3);
-
-  Eigen::MatrixXd M_inverse = M.inverse();
-  Eigen::Matrix3d LAMBDA = linear_jacobian*M_inverse*linear_jacobian.transpose();
-  return 1/(normal_vector.transpose()*LAMBDA*normal_vector);
-}
-
-const Eigen::VectorXd Get_In_Position_Task::compute_emass_gradient_backward_difference_mbc(
-  const rbd::MultiBodyConfig &mbc, 
-  mc_control::fsm::Controller &ctl_, 
-  const Eigen::Vector3d &normal_vector) const{
-
-  HammeringTaskNew &ctl = static_cast<HammeringTaskNew &>(ctl_);
-  const double epsilon = 1E-6;
-  Eigen::VectorXd grad(ctl.robot().mb().nrDof(), 1);
-  grad.setOnes();
-  double m_q = compute_effective_mass_with_mbc(mbc, ctl_, normal_vector);
-  double backward_effective_mass = 0;
-  
-  unsigned int j = 0;
-  rbd::MultiBodyConfig backward_mbc;
-  for(size_t i = 0; i <  std::size(mbc.q); ++i)
-  { 
-    if(mbc.q.at(i).size() != 1)
+    HammeringTaskNew &ctl = static_cast<HammeringTaskNew &>(ctl_);
+    ctl.robot().forwardKinematics(mbc);
+    const rbd::MultiBody &robot_mb = ctl.robot().mb();
+    rbd::Jacobian jac(robot_mb, ctl.hammer_head_frame_name);
+    const Eigen::MatrixXd world_jacobian = jac.jacobian(robot_mb, mbc);
+    Eigen::MatrixXd full_jacobian(6, robot_mb.nrDof());
+    jac.fullJacobian(robot_mb, world_jacobian, full_jacobian);
+    const Eigen::MatrixXd Jv = full_jacobian.bottomRows(3);
+    rbd::ForwardDynamics fd(robot_mb);
+    fd.computeH(robot_mb, mbc);
+    const Eigen::MatrixXd &M = fd.H();
+    const Eigen::VectorXd JvT_n = Jv.transpose() * normal_vector;
+    const Eigen::VectorXd x = M.ldlt().solve(JvT_n);
+    const double denominator = JvT_n.dot(x);
+    if(std::abs(denominator) < 1e-12)
     {
-      // Ignore floating base and fixed joints
-      continue;
+        return 0.0;
     }
-    // dqi = mbc.q.at(i).at(0) - _old_mbc.q.at(i).at(0);
-    backward_mbc = mbc;
-    backward_mbc.q.at(i).at(0) -= epsilon;
-
-    //Finite differences
-    backward_effective_mass = compute_effective_mass_with_mbc(backward_mbc, ctl_, normal_vector);
-    grad(j,0) = (m_q - backward_effective_mass)/epsilon;
-    j+=1;
-      
-      // mc_rtc::log::info("forward_mbc_q[i] = {}", forward_mbc.q.at(i).at(0));
-      // mc_rtc::log::info("backward_mbc_q[i] = {}", backward_mbc.q.at(i).at(0));
-      // mc_rtc::log::info("---------------------");
-      // mc_rtc::log::info("grad[{}] = {}", 6+j, grad_res);
-      // backward_mbc.q.at(i).at(0) = mbc.q.at(i).at(0);
-  }
-  return grad;
+    return 1.0 / denominator;
 }
 
-const Eigen::VectorXd Get_In_Position_Task::compute_emass_gradient_three_point_backward_difference_mbc(
-  const rbd::MultiBodyConfig &mbc, 
-  mc_control::fsm::Controller &ctl_, 
-  const Eigen::Vector3d &normal_vector) const{
+Eigen::VectorXd Get_In_Position_Task::compute_emass_gradient_backward_difference_mbc(
+    const rbd::MultiBodyConfig &mbc,
+    mc_control::fsm::Controller &ctl_,
+    const Eigen::Vector3d &normal_vector,
+    const std::vector<std::string> &active_joints) const
+{
+    HammeringTaskNew &ctl = static_cast<HammeringTaskNew &>(ctl_);
+    const rbd::MultiBody &robot_mb = ctl.robot().mb();
+    constexpr double epsilon = 1e-5;
+    
+    Eigen::VectorXd gradient = Eigen::VectorXd::Zero(robot_mb.nrDof());
+    const double effective_mass_current = compute_effective_mass_with_mbc(mbc, ctl_, normal_vector);
 
-  HammeringTaskNew &ctl = static_cast<HammeringTaskNew &>(ctl_);
-
-  const double epsilon = 1E-6;
-  Eigen::VectorXd grad(ctl.robot().mb().nrDof(), 1);
-  grad.setZero();
-  double backward_effective_mass = 0;
-  double m_q = compute_effective_mass_with_mbc(mbc, ctl_, normal_vector);
-
-  unsigned int j = 0;
-  if (ctl.robot().mb().nrDof() > ctl.robot().tvmRobot().qJoints()->size())
-  {
-    j = ctl.robot().mb().nrDof() - ctl.robot().tvmRobot().qJoints()->size(); // Start after the floating base DOFs
-  }
-  rbd::MultiBodyConfig p1;
-  rbd::MultiBodyConfig p2;
-
-  rbd::MultiBodyConfig p3;
-  rbd::MultiBodyConfig p4;
-
-  double first_term = 0;
-  double second_term = 0;
-
-
-  for(size_t i = 0; i <  std::size(mbc.q); ++i)
-  { 
-    if(mbc.q.at(i).size() != 1)
+    for(const auto &joint_name : active_joints)
     {
-      // Ignore floating base and fixed joints
-      // TODO: Implement the gradient for the floating base DOFs as well (take in mind to not predefine j to be the size of the floating base DOFs but to update it in the loop)
-      continue;
+        const unsigned int joint_mb_index = robot_mb.jointIndexByName(joint_name);
+        const int dof_index = robot_mb.jointPosInDof(joint_mb_index);
+
+        rbd::MultiBodyConfig mbc_minus = mbc;
+        mbc_minus.q[joint_mb_index][0] -= epsilon;
+
+        const double effective_mass_minus = compute_effective_mass_with_mbc(mbc_minus, ctl_, normal_vector);
+
+        gradient(dof_index) = (effective_mass_current - effective_mass_minus) / epsilon;
     }
-    // dqi = mbc.q.at(i).at(0) - _old_mbc.q.at(i).at(0);
-    p1 = mbc;
-    p2 = mbc;
-    p3 = mbc;
-    p4 = mbc;
-
-    p1.q.at(i).at(0) -= 2*epsilon;
-    p2.q.at(i).at(0) -= epsilon;
-
-    first_term = compute_effective_mass_with_mbc(p1, ctl_, normal_vector);
-    second_term = compute_effective_mass_with_mbc(p2, ctl_, normal_vector);
-
-    //Finite differences
-    backward_effective_mass = first_term - 4*second_term + 3*m_q;
-    grad(j,0) = backward_effective_mass/(2*epsilon);
-    j+=1;
-      
-      // mc_rtc::log::info("forward_mbc_q[i] = {}", forward_mbc.q.at(i).at(0));
-      // mc_rtc::log::info("backward_mbc_q[i] = {}", backward_mbc.q.at(i).at(0));
-      // mc_rtc::log::info("---------------------");
-      // mc_rtc::log::info("grad[{}] = {}", 6+j, grad_res);
-      // backward_mbc.q.at(i).at(0) = mbc.q.at(i).at(0);
-  }
-  return grad;
+    return gradient;
 }
 
-const Eigen::VectorXd Get_In_Position_Task::compute_emass_gradient_central_difference_mbc(
-                                                            const rbd::MultiBodyConfig &mbc, 
-                                                             mc_control::fsm::Controller &ctl_, 
-                                                            const Eigen::Vector3d &normal_vector) const{
-    auto & ctl = static_cast<HammeringTaskNew &>(ctl_);
 
-    double dqi = 0;
-    Eigen::VectorXd grad(ctl.robot().mb().nrDof(), 1);
-    grad.setOnes();
 
-    rbd::MultiBodyConfig forward_mbc;
-    rbd::MultiBodyConfig backward_mbc;
-
-    double forward_effective_mass = 0;
-    double backward_effective_mass = 0;
-    unsigned int j = 0;
-    // ctl.robot().forwardKinematics(mbc);
-    for(size_t i = 0; i <  std::size(mbc.q); ++i)
-    { 
-      if(mbc.q.at(i).size() != 1)
-      {
-        // Ignore floating base (size = 6) and fixed joints (size = 0)
-        continue;
-      }
-      dqi = mbc.q.at(i).at(0) - _old_mbc.q.at(i).at(0);
-      forward_mbc = mbc;
-      backward_mbc = mbc;
-      forward_mbc.q.at(i).at(0) += dqi;
-      backward_mbc.q.at(i).at(0) -= dqi;
-
-      //Finite differences - Central differences
-      forward_effective_mass = compute_effective_mass_with_mbc(forward_mbc, 
-                                                                ctl, 
-                                                                  normal_vector);
-      backward_effective_mass = compute_effective_mass_with_mbc(backward_mbc, 
-                                                                  ctl, 
-                                                                  normal_vector);
-
-      grad(j,0) = (forward_effective_mass - backward_effective_mass)/(2*dqi);
-      j+=1;
-    }
-  
-  return grad;
-}
-
-const double Get_In_Position_Task::estimate_previous_effective_mass(const Eigen::VectorXd &gradient, const double &current_m) const{
-  double dm_sum = 0;
-  double dqi = 0;
-  std::vector<std::vector<double>> q = _new_mbc.q;
-  std::vector<std::vector<double>> old_q = _old_mbc.q;
-  unsigned int j = 0;
-  for (size_t i = 0; i < std::size(q); ++i)
-  {
-    if (std::size(q.at(i)) != 1)
-    {
-      //Ignore floating base (size = 6) and empty dofs (size = 0)
-      continue;
-    }    
-    dqi = q.at(i).at(0) - old_q.at(i).at(0);
-    dm_sum += gradient(j, 0) * dqi;
-    j+=1;
-  }
-  return current_m - dm_sum;
-}
 
 void Get_In_Position_Task::load_params()
 {

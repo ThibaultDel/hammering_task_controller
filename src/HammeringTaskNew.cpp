@@ -33,9 +33,6 @@ HammeringTaskNew::HammeringTaskNew(mc_rbdyn::RobotModulePtr rm, double dt, const
   // Nail normal vector (n) expressed in world frame 
   nail_normal_vector_world_frame = (nail_rot.transpose()*normal_vector_nail_frame).normalized();
 
-  // Store the initial posture of the robot
-  // solver().addTask(postureTask);
-  // postureTask->stiffness(100);
   contactConstraintSet = std::make_unique<mc_solver::ContactConstraint>(timeStep, mc_solver::ContactConstraint::ContactType::Acceleration);
   solver().addConstraintSet(contactConstraintSet);
   addContact({robot().name(), "ground", "LeftFoot", "AllGround"});
@@ -44,18 +41,11 @@ HammeringTaskNew::HammeringTaskNew(mc_rbdyn::RobotModulePtr rm, double dt, const
   // std::shared_ptr<mc_tasks::PostureTask> FSMPostureTask = getPostureTask(robot().name());
   // base_posture_vector = FSMPostureTask->posture();
 
-  // dynamicsConstraint = mc_rtc::unique_ptr<mc_solver::DynamicsConstraint>(
-  //   new mc_solver::DynamicsConstraint(
-  //       robots(), 0, {0.1, 0.01, xsiOff_, m_, lambda_}, 0.9, true));
-  // const std::array<double, 3> damping = {0.55, 0.30, 0.9};
   dynamicsConstraint = std::make_unique<mc_solver::DynamicsConstraint>(robots(), robot().robotIndex(), solver().dt(), _damping, _vp, false, true);
   solver().addConstraintSet(dynamicsConstraint);
 
   // Add impulse constraint
   mc_rtc::log::info("normal nail world frame {}", nail_normal_vector_world_frame);
-  // impulseConstraint is initialized and added to solver in Get_In_Position_Task
-  // impulseConstraint = std::make_unique<mc_solver::ImpulseConstraint>(robots(), robot().robotIndex(), robot().frame(hammer_head_frame_name), nail_normal_vector_world_frame, _lambda_high, _lambda_low, _delta_t, _c_res, _dt_multi, logger());
-  //solver().addConstraintSet(impulseConstraint);
 
   // Load default configuration from robot module
   stabiConf = robot().module().defaultLIPMStabilizerConfiguration();
@@ -245,8 +235,6 @@ bool HammeringTaskNew::run()
   +(J_.transpose()*effective_mass*P_n*J_)*q_dd);
   tau_imp_derivate_num = (tau_imp_act-tau_imp_previous)/solver().dt();
   tau_imp_previous = tau_imp_act;
-  //mc_solver::TVMImpulseConstraint* High_constraint = static_cast<mc_solver::TVMImpulseConstraint *>(impulseConstraint->getConstraint().get());
-  //mc_solver::TVMImpulseConstraint* Low_constraint = static_cast<mc_solver::TVMImpulseConstraint *>(impulseConstraint->getConstraint().get());
   end_effector_velocity=linear_jacobian*q_d;
   if (impulseConstraint) {
     if((robot().frame("Hammer_head").position().translation() - robot(nail_robot_name).frame(nail_frame_name).position().translation()).norm() < _Activation_height){
@@ -362,8 +350,11 @@ void HammeringTaskNew::addToGUI()
       ,[this]() { return Eigen::Vector3d{this->_Activation_height,this->_tau_high_mulitplier,this->_K};}
       ,[this](const Eigen::Vector3d & Linear_impulsive_constraint) {_Activation_height = Linear_impulsive_constraint(0);
                                                         _tau_high_mulitplier = Linear_impulsive_constraint(1),
-                                                        _K = Linear_impulsive_constraint(2);}));
-                                                        
+                                                        _K = Linear_impulsive_constraint(2);}),
+      mc_rtc::gui::NumberInput("Effective mass maximization weight"
+      ,[this]() { return _magic_effective_mass_maximization_task_weight;}
+      ,[this](const double & _effective_mass_maximization_task_weight) {_magic_effective_mass_maximization_task_weight=_effective_mass_maximization_task_weight;}));
+        
   this->gui()->addElement({},
     mc_rtc::gui::Checkbox(linear_constraint_button_name, [this]() { return linear_impulsive_torque_ctr_flag; }, [this]() { linear_impulsive_torque_ctr_flag = !linear_impulsive_torque_ctr_flag; })
     ,mc_rtc::gui::Label("Force threshold triggered", [this]() -> bool { return impact_detected;})
@@ -688,7 +679,9 @@ void HammeringTaskNew::load_parameters()
   _magic_posture_task_weight = config_(global_control_param_key)(hitting_tasks_paramater)("magic_posture_task_weight");
   _magic_posture_task_stiffness = config_(global_control_param_key)(hitting_tasks_paramater)("magic_posture_task_stiffness");
 
-  _magic_effective_mass_maximization_task_weight = config_(global_control_param_key)(hitting_tasks_paramater)("magic_effective_mass_maximization_task_weight");
+  _effective_mass_posture_weight = config_(global_control_param_key)(hitting_tasks_paramater)("effective_mass_posture_weight");
+  _effective_mass_posture_stiffness = config_(global_control_param_key)(hitting_tasks_paramater)("effective_mass_posture_stiffness");
+  _effective_mass_posture_damping = config_(global_control_param_key)(hitting_tasks_paramater)("effective_mass_posture_damping");
 
   _magic_vector_orientation_task_weight = config_(global_control_param_key)(hitting_tasks_paramater)("magic_vector_orientation_task_weight");
   _magic_vector_orientation_task_stiffness = config_(global_control_param_key)(hitting_tasks_paramater)("magic_vector_orientation_task_stiffness");
@@ -713,6 +706,7 @@ void HammeringTaskNew::load_parameters()
   _magic_final_velocity = config_(global_control_param_key)(hitting_tasks_paramater)(curve_constraints_key)("magic_final_velocity");
   _magic_bspline_waypoint_height = config_(global_control_param_key)(hitting_tasks_paramater)("magic_bspline_waypoint_height");
   _magic_init_vel= config_(global_control_param_key)(hitting_tasks_paramater)(curve_constraints_key)("magic_init_velocity");
+  _magic_effective_mass_maximization_task_weight = config_(global_control_param_key)(hitting_tasks_paramater)("magic_effective_mass_maximization_task_weight");
   
 }
 

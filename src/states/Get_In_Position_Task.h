@@ -77,6 +77,9 @@ struct Get_In_Position_Task : mc_control::fsm::State
     Eigen::VectorXd dimweights_posture;// = Eigen::VectorXd::Ones();
     Eigen::Vector6d dimweights_transform_task = {0,0,0,0,0,0};
 
+    //Posture task for effective mass maximization
+    std::shared_ptr<mc_tasks::PostureTask> Effective_mass_maximization_PostureTask;
+
     bool stop = false;
     
     // Size of the gradient of m is [1 x n_dof]
@@ -142,23 +145,23 @@ struct Get_In_Position_Task : mc_control::fsm::State
     double _magic_posture_task_stiffness = 1.0f;
 
     const std::vector<std::string> mass_maximization_active_joints = {
-        "LCY" ,
-        "LCR" ,
-        "LCP" ,
-        "LKP" ,
-        "LAP" ,
-        "LAR" ,
-        "RCY" ,
-        "RCR" ,
-        "RCP" ,
-        "RKP" ,
-        "RAP" ,
-        "RAR" ,
-        "WP"  ,
-        "WR"  ,
-        "WY"  ,
-        "HY"  ,
-        "HP"  ,
+        //"LCY" ,
+        //"LCR" ,
+        //"LCP" ,
+        //"LKP" ,
+        //"LAP" ,
+        //"LAR" ,
+        //"RCY" ,
+        //"RCR" ,
+        //"RCP" ,
+        //"RKP" ,
+        //"RAP" ,
+        //"RAR" ,
+        //"WP"  ,
+        //"WR"  ,
+        //"WY"  ,
+        //"HY"  ,
+        //"HP"  ,
         "LSC" ,
         "LSP" ,
         "LSR" ,
@@ -167,17 +170,18 @@ struct Get_In_Position_Task : mc_control::fsm::State
         "LWRY",
         "LWRR",
         "LWRP",
-        "LHDY",
-        "RSC" ,
-        "RSP" ,
-        "RSR" ,
-        "RSY" ,
-        "REP" ,
-        "RWRY",
-        "RWRR",
-        "RWRP",
-        "RHDY"
+        "LHDY"//,
+        //"RSC" ,
+        //"RSP" ,
+        //"RSR" ,
+        //"RSY" ,
+        //"REP" ,
+        //"RWRY",
+        //"RWRR",
+        //"RWRP",
+        //"RHDY"
     };
+
     int joint_selector_logging_counter = 0;
 
     // Joint name to qJoints index map (inline static so it's header-safe)
@@ -257,9 +261,11 @@ struct Get_In_Position_Task : mc_control::fsm::State
     @param ctl_
     @param normal_vector the vector used to compute the effective mass of the robot
      */  
-    const Eigen::VectorXd compute_emass_gradient_backward_difference_mbc(const rbd::MultiBodyConfig &mbc, 
-                                                                          mc_control::fsm::Controller &ctl_, 
-                                                                          const Eigen::Vector3d &normal_vector) const;
+    Eigen::VectorXd compute_emass_gradient_backward_difference_mbc(
+    const rbd::MultiBodyConfig &mbc,
+    mc_control::fsm::Controller &ctl_,
+    const Eigen::Vector3d &normal_vector,
+    const std::vector<std::string> &active_joints) const;
 
     /**
     @brief Computes the time derivative of the effective mass using its gradient and mbc.q
@@ -375,7 +381,13 @@ struct Get_In_Position_Task : mc_control::fsm::State
     const double compute_effective_mass_with_encoders(const std::vector<double> &encoderValues, 
                                                       mc_control::fsm::Controller & ctl_, 
                                                       const Eigen::Vector3d &normal_vector) const;
-
+    
+double compute_effective_mass_with_M(
+    rbd::MultiBody &robot_mb,
+    rbd::MultiBodyConfig &mbc,
+    rbd::Jacobian &jac,
+    const Eigen::LDLT<Eigen::MatrixXd> &M_ldlt,
+    const Eigen::Vector3d &normal_vector) const;                                
     /**
     @brief Compute the derivative of the effective mass with respect to the robot configuration
           using central difference

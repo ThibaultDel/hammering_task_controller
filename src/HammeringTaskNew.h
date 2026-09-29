@@ -149,7 +149,11 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
     double _magic_BSpline_task_dimweight_rz = 1.0f;
     Eigen::Vector6d dimweights = {0,0,0,0,0,0};
     Eigen::Vector3d _magic_init_vel = {0,0,0};
+    
     double _magic_effective_mass_maximization_task_weight = 1.0f;
+    double _effective_mass_posture_weight = 1.0f;
+    double _effective_mass_posture_stiffness = 1.0f;
+    double _effective_mass_posture_damping = 0.0f;
 
     double _magic_vector_orientation_task_weight = 1.0f;
     double _magic_vector_orientation_task_stiffness = 1.0f;
@@ -228,23 +232,23 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
     // Helper to access it easily
     const mc_rbdyn::BodySensor & floatingBaseSensor_ = robot().bodySensor("FloatingBase");
     const std::vector<std::string> mass_maximization_active_joints = {
-        "LCY" ,
-        "LCR" ,
-        "LCP" ,
-        "LKP" ,
-        "LAP" ,
-        "LAR" ,
-        "RCY" ,
-        "RCR" ,
-        "RCP" ,
-        "RKP" ,
-        "RAP" ,
-        "RAR" ,
-        "WP"  ,
-        "WR"  ,
-        "WY"  ,
-        "HY"  ,
-        "HP"  ,
+        //"LCY" ,
+        //"LCR" ,
+        //"LCP" ,
+        //"LKP" ,
+        //"LAP" ,
+        //"LAR" ,
+        //"RCY" ,
+        //"RCR" ,
+        //"RCP" ,
+        //"RKP" ,
+        //"RAP" ,
+        //"RAR" ,
+        //"WP"  ,
+        //"WR"  ,
+        //"WY"  ,
+        //"HY"  ,
+        //"HP"  ,
         "LSC" ,
         "LSP" ,
         "LSR" ,
@@ -253,16 +257,16 @@ struct HammeringTaskNew_DLLAPI HammeringTaskNew : public mc_control::fsm::Contro
         "LWRY",
         "LWRR",
         "LWRP",
-        "LHDY",
-        "RSC" ,
-        "RSP" ,
-        "RSR" ,
-        "RSY" ,
-        "REP" ,
-        "RWRY",
-        "RWRR",
-        "RWRP",
-        "RHDY"
+        "LHDY"//,
+        //"RSC" ,
+        //"RSP" ,
+        //"RSR" ,
+        //"RSY" ,
+        //"REP" ,
+        //"RWRY",
+        //"RWRR",
+        //"RWRP",
+        //"RHDY"
     };
     std::string selected_plot_joint_ = "LWRR";
     std::string selected_plot_mode_ = "Impulsive Torque";

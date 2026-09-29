@@ -70,8 +70,11 @@ global_controller_params:
     magic_BSpline_task_dimweight_ry: 0
     magic_BSpline_task_dimweight_rz: 0
     magic_posture_task_weight: 1 
-    magic_posture_task_stiffness: 1 
-    magic_effective_mass_maximization_task_weight: 0
+    magic_posture_task_stiffness: 10 
+    magic_effective_mass_maximization_task_weight: 10
+    effective_mass_posture_weight: 500
+    effective_mass_posture_stiffness: 10
+    effective_mass_posture_damping: 0
     magic_posture_task_weight_local: 1
     magic_vector_orientation_task_weight: 500 
     magic_vector_orientation_task_stiffness: 7
@@ -152,7 +155,7 @@ states:
       magic_BSpline_task_dimweight_ry: 0
       magic_BSpline_task_dimweight_rz: 0
       magic_posture_task_weight: 1
-      magic_posture_task_stiffness: 1
+      magic_posture_task_stiffness: 10
       magic_effective_mass_maximization_task_weight: 1
       magic_posture_task_weight_local: 1
       magic_vector_orientation_task_weight: 500

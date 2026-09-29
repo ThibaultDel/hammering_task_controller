@@ -21,8 +21,8 @@ void Post_Impact_Task::start(mc_control::fsm::Controller & ctl_)
     // _postureTask->posture(ctl.base_posture_vector);
     // _postureTask->stiffness(_magic_posture_task_stiffness);
     // _postureTask->weight(_magic_posture_task_weight);
-    ctl.getPostureTask(ctl.robot().name())->stiffness(_magic_posture_task_stiffness);
-    ctl.getPostureTask(ctl.robot().name())->weight(_magic_posture_task_weight);
+    ctl.getPostureTask(ctl.robot().name())->stiffness(ctl._magic_posture_task_stiffness);
+    ctl.getPostureTask(ctl.robot().name())->weight(ctl._magic_posture_task_weight);
     ctl.getPostureTask(ctl.robot().name())->damping(ctl.base_posture_damping);
 
     _target_velocity = -0.1f*ctl.nail_rot.transpose()*_magic_normal_final_velocity;
