@@ -45,7 +45,7 @@ global_controller_params:
     max_number_of_hits: 1
   hitting_constraint_paramater:
     c_res: 1   
-    delta_t: 0.001
+    delta_t: 0.005
     lambda_high: 500
     lambda_low: 25
     impulsive_tau_limit_multiplier: 1
@@ -71,7 +71,7 @@ global_controller_params:
     magic_BSpline_task_dimweight_rz: 0
     magic_posture_task_weight: 1 
     magic_posture_task_stiffness: 10 
-    magic_effective_mass_maximization_task_weight: 10
+    magic_effective_mass_maximization_task_weight: 1
     effective_mass_posture_weight: 500
     effective_mass_posture_stiffness: 10
     effective_mass_posture_damping: 0
