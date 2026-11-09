@@ -323,7 +323,7 @@ void HammeringTaskNew::addToGUI()
       ,[this](const Eigen::Vector3d & Bspline_param) {_magic_BSpline_max_duration=Bspline_param(0);
                                                         _magic_normal_final_velocity=Bspline_param(1);
                                                         _magic_bspline_waypoint_height=Bspline_param(2);
-                                                        _magic_final_velocity=_magic_final_velocity*_magic_normal_final_velocity;}),
+                                                        _magic_final_velocity=Eigen::Vector3d(0, 0, _magic_normal_final_velocity > 0 ? -_magic_normal_final_velocity : _magic_normal_final_velocity);}),
       mc_rtc::gui::ArrayInput("Bspline init velocity (Vx Vy Vz)"
       ,[this]() { return this->_magic_init_vel;}
       ,[this](const Eigen::Vector3d & Bspline_init_velocity) {this->_magic_init_vel = Bspline_init_velocity;}),
@@ -704,6 +704,7 @@ void HammeringTaskNew::load_parameters()
   _magic_BSpline_task_damping = config_(global_control_param_key)(hitting_tasks_paramater).has("magic_BSpline_task_damping") ? config_(global_control_param_key)(hitting_tasks_paramater)("magic_BSpline_task_damping") : 2.0 * sqrt(_magic_BSpline_task_stiffness);
   _magic_BSpline_task_weight = config_(global_control_param_key)(hitting_tasks_paramater)("magic_BSpline_task_weight");
   _magic_final_velocity = config_(global_control_param_key)(hitting_tasks_paramater)(curve_constraints_key)("magic_final_velocity");
+  _magic_normal_final_velocity = _magic_final_velocity.z();
   _magic_bspline_waypoint_height = config_(global_control_param_key)(hitting_tasks_paramater)("magic_bspline_waypoint_height");
   _magic_init_vel= config_(global_control_param_key)(hitting_tasks_paramater)(curve_constraints_key)("magic_init_velocity");
   _magic_effective_mass_maximization_task_weight = config_(global_control_param_key)(hitting_tasks_paramater)("magic_effective_mass_maximization_task_weight");

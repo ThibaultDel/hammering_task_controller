@@ -425,37 +425,53 @@ Eigen::VectorXd Get_In_Position_Task::compute_emass_gradient_backward_difference
 
 void Get_In_Position_Task::load_params()
 {
-  // Paramters changeable using GUI have been moove to HammeringTaskNew cpp
+  // Parameters changeable using GUI have been moved to HammeringTaskNew cpp
 
   std::string magic_values_key = "magic_values";
-
-  _logging_freq = _config(magic_values_key)("logging_freq");
-
-  _gripper_task_weight = _config(magic_values_key)("gripper_task_weight");
-  _gripper_task_min_stiffness = _config(magic_values_key)("gripper_task_min_stiffness");
-  _gripper_task_max_stiffness = _config(magic_values_key)("gripper_task_max_stiffness");
-  _gripper_task_goal_error = _config(magic_values_key)("gripper_task_goal_error");
-  _gripper_task_K_scaling_factor = _config(magic_values_key)("gripper_task_s");
+  if(_config.has(magic_values_key))
+  {
+    mc_rtc::Configuration c = _config(magic_values_key);
+    if(c.has("logging_freq")) { _logging_freq = c("logging_freq"); }
+    if(c.has("gripper_task_weight")) { _gripper_task_weight = c("gripper_task_weight"); }
+    if(c.has("gripper_task_min_stiffness")) { _gripper_task_min_stiffness = c("gripper_task_min_stiffness"); }
+    if(c.has("gripper_task_max_stiffness")) { _gripper_task_max_stiffness = c("gripper_task_max_stiffness"); }
+    if(c.has("gripper_task_goal_error")) { _gripper_task_goal_error = c("gripper_task_goal_error"); }
+    if(c.has("gripper_task_s")) { _gripper_task_K_scaling_factor = c("gripper_task_s"); }
+  }
 
   // ------------------------ Loading init and start velocities, accelerations and jerks ---------------------------
 
   std::string curve_constraints_key = "curve_constraints";
-  std::string linear_velocity_key = "linear_velocity";
-  std::string linear_acceleration_key = "linear_acceleration";
-  std::string x_key = "x";
-  std::string y_key = "y";
-  std::string z_key = "z";
+  if(_config.has(curve_constraints_key))
+  {
+    mc_rtc::Configuration c = _config(curve_constraints_key);
+    std::string linear_acceleration_key = "linear_acceleration";
+    if(c.has(linear_acceleration_key))
+    {
+      mc_rtc::Configuration acc = c(linear_acceleration_key);
+      std::string x_key = "x";
+      std::string y_key = "y";
+      std::string z_key = "z";
+      std::string init_key = "init";
+      std::string end_key = "end";
 
-  std::string init_key = "init";
-  std::string end_key = "end";
-
-  _constr.init_acc.x() = _config(curve_constraints_key)(linear_acceleration_key)(x_key)(init_key);
-  _constr.init_acc.y() = _config(curve_constraints_key)(linear_acceleration_key)(y_key)(init_key);
-  _constr.init_acc.z() = _config(curve_constraints_key)(linear_acceleration_key)(z_key)(init_key);
-
-  _constr.end_acc.x() = _config(curve_constraints_key)(linear_acceleration_key)(x_key)(end_key);
-  _constr.end_acc.y() = _config(curve_constraints_key)(linear_acceleration_key)(y_key)(end_key);
-  _constr.end_acc.z() = _config(curve_constraints_key)(linear_acceleration_key)(z_key)(end_key);
+      if(acc.has(x_key))
+      {
+        if(acc(x_key).has(init_key)) { _constr.init_acc.x() = acc(x_key)(init_key); }
+        if(acc(x_key).has(end_key)) { _constr.end_acc.x() = acc(x_key)(end_key); }
+      }
+      if(acc.has(y_key))
+      {
+        if(acc(y_key).has(init_key)) { _constr.init_acc.y() = acc(y_key)(init_key); }
+        if(acc(y_key).has(end_key)) { _constr.end_acc.y() = acc(y_key)(end_key); }
+      }
+      if(acc.has(z_key))
+      {
+        if(acc(z_key).has(init_key)) { _constr.init_acc.z() = acc(z_key)(init_key); }
+        if(acc(z_key).has(end_key)) { _constr.end_acc.z() = acc(z_key)(end_key); }
+      }
+    }
+  }
 }
 
 void Get_In_Position_Task::add_logs(mc_control::fsm::Controller & ctl_)

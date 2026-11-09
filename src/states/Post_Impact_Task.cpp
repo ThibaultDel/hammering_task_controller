@@ -97,28 +97,32 @@ void Post_Impact_Task::load_parameters()
 {
     // --------------- Loading magic values ------------------------
     const std::string magic_values_key = "magic_values";
-    _magic_posture_task_weight = _config(magic_values_key)("magic_posture_task_weight");
-    _magic_posture_task_stiffness = _config(magic_values_key)("magic_posture_task_stiffness");
-    _magic_posture_task_epsilon = _config(magic_values_key)("magic_posture_task_epsilon");
-
-    _transform_task_weight = _config(magic_values_key)("transform_task_weight");
-    _transform_task_stiffness = _config(magic_values_key)("transform_task_stiffness");
-    _transform_task_damping = _config(magic_values_key)("transform_task_damping");
-
-
-    _magic_BSpline_task_dimweight_x = _config(magic_values_key)("magic_BSpline_task_dimweight_x");
-    _magic_BSpline_task_dimweight_y = _config(magic_values_key)("magic_BSpline_task_dimweight_y");
-    _magic_BSpline_task_dimweight_z = _config(magic_values_key)("magic_BSpline_task_dimweight_z");
-
-    std::string curve_constraints_key = "curve_constraints";
-    _magic_normal_final_velocity = _config(curve_constraints_key)("magic_normal_final_velocity");
-
-    if(_config(magic_values_key).has("post_impact_get_away_distance"))
+    if(_config.has(magic_values_key))
     {
-      _post_impact_get_away_distance = _config(magic_values_key)("post_impact_get_away_distance");
+      mc_rtc::Configuration c = _config(magic_values_key);
+      if(c.has("magic_posture_task_weight")) { _magic_posture_task_weight = c("magic_posture_task_weight"); }
+      if(c.has("magic_posture_task_stiffness")) { _magic_posture_task_stiffness = c("magic_posture_task_stiffness"); }
+      if(c.has("magic_posture_task_epsilon")) { _magic_posture_task_epsilon = c("magic_posture_task_epsilon"); }
+
+      if(c.has("transform_task_weight")) { _transform_task_weight = c("transform_task_weight"); }
+      if(c.has("transform_task_stiffness")) { _transform_task_stiffness = c("transform_task_stiffness"); }
+      if(c.has("transform_task_damping")) { _transform_task_damping = c("transform_task_damping"); }
+
+      if(c.has("magic_BSpline_task_dimweight_x")) { _magic_BSpline_task_dimweight_x = c("magic_BSpline_task_dimweight_x"); }
+      if(c.has("magic_BSpline_task_dimweight_y")) { _magic_BSpline_task_dimweight_y = c("magic_BSpline_task_dimweight_y"); }
+      if(c.has("magic_BSpline_task_dimweight_z")) { _magic_BSpline_task_dimweight_z = c("magic_BSpline_task_dimweight_z"); }
+
+      if(c.has("post_impact_get_away_distance"))
+      {
+        _post_impact_get_away_distance = c("post_impact_get_away_distance");
+      }
     }
 
-
+    std::string curve_constraints_key = "curve_constraints";
+    if(_config.has(curve_constraints_key) && _config(curve_constraints_key).has("magic_normal_final_velocity"))
+    {
+      _magic_normal_final_velocity = _config(curve_constraints_key)("magic_normal_final_velocity");
+    }
 }
 
 void Post_Impact_Task::log_values(mc_control::fsm::Controller & ctl_)

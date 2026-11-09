@@ -15,7 +15,7 @@ robots:
     module: object/nail
     init_pos:
       translation:
-      - 0.4
+      - 0.7
       - 0.3
       - 0.9
       rotation:
@@ -41,7 +41,7 @@ global_controller_params:
   magic_values:
     magic_force_threshold: 1
     magic_force_threshold_nail: 100
-    magic_force_threshold_sensor: 250
+    magic_force_threshold_sensor: 150
     max_number_of_hits: 1
   hitting_constraint_paramater:
     c_res: 1   
@@ -59,8 +59,8 @@ global_controller_params:
     K: 0.5
   hitting_tasks_paramater:
     magic_BSpline_task_weight: 500
-    magic_BSpline_max_duration: 5
-    magic_bspline_waypoint_height: 0.5
+    magic_BSpline_max_duration: 3
+    magic_bspline_waypoint_height: 0.8
     magic_BSpline_task_stiffness: 10
     magic_BSpline_task_damping: 8
     magic_BSpline_task_dimweight_tx: 1
@@ -88,7 +88,7 @@ global_controller_params:
       magic_final_velocity:
       - 0
       - 0
-      - -0.5 
+      - -0.2 
       magic_init_velocity:
       - 0
       - 0
@@ -143,50 +143,6 @@ global_controller_params:
 states:
   Hammer::Get_In_Position_Task:
     base: Get_In_Position_Task
-    magic_values:
-      magic_BSpline_task_weight: 500
-      magic_BSpline_max_duration: 2
-      magic_BSpline_task_stiffness: 10
-      magic_BSpline_task_damping: 5
-      magic_BSpline_task_dimweight_tx: 1
-      magic_BSpline_task_dimweight_ty: 1
-      magic_BSpline_task_dimweight_tz: 1
-      magic_BSpline_task_dimweight_rx: 0
-      magic_BSpline_task_dimweight_ry: 0
-      magic_BSpline_task_dimweight_rz: 0
-      magic_posture_task_weight: 1
-      magic_posture_task_stiffness: 10
-      magic_effective_mass_maximization_task_weight: 1
-      magic_posture_task_weight_local: 1
-      magic_vector_orientation_task_weight: 500
-      magic_vector_orientation_task_stiffness: 7
-      gripper_task_min_stiffness: 500
-      gripper_task_max_stiffness: 500
-      gripper_task_goal_error: 0.0001
-      gripper_task_s: 0.5
-      gripper_task_weight: 10
-      logging_freq: 50
-    curve_constraints:
-      magic_normal_final_velocity:
-      - 0
-      - 0
-      - -0.5
-      linear_velocity:
-      - 0
-      - 0
-      - 0
-      linear_acceleration:
-        x:
-          init: 0
-          end: 0
-        y:
-          init: 0
-          end: 0
-        z:
-          init: 0
-          end: 0
-      orientation:
-        enable_BSpline_orientation: false
   Hammer::Post_Impact_Task:
     base: Post_Impact_Task
     magic_values:
@@ -200,25 +156,6 @@ states:
       magic_BSpline_task_dimweight_x: 1
       magic_BSpline_task_dimweight_y: 1
       magic_BSpline_task_dimweight_z: 1
-    curve_constraints:
-      magic_normal_final_velocity:
-      - 0
-      - 0
-      - -0.5
-      linear_velocity:
-      - 0
-      - 0
-      - 0
-      linear_acceleration:
-        x:
-          init: 0
-          end: 0
-        y:
-          init: 0
-          end: 0
-        z:
-          init: 0
-          end: 0
   CoM:
     base: MetaTasks
     tasks:
