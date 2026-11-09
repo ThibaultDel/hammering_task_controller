@@ -23,6 +23,7 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   ctl._Activation_height = 0.0;
   load_params();
   add_logs(ctl_);
+  add_param_logs(ctl_);
  
   // Add a stop button to the gui
   ctl.gui()->addElement({}, mc_rtc::gui::Button(ctl.stop_hammering_button_name, [this]() { stop = true; }));
@@ -339,6 +340,7 @@ void Get_In_Position_Task::teardown(mc_control::fsm::Controller & ctl_)
   ctl.impulsive_constraint_flag = false;
   ctl.getPostureTask(ctl.robot().name())->refAccel(Eigen::VectorXd::Zero(35));
   rm_logs(ctl_);
+  rm_param_logs(ctl_);
   mc_rtc::log::info("Tasks cleared successfully");
 }
 
@@ -526,6 +528,78 @@ void Get_In_Position_Task::rm_logs(mc_control::fsm::Controller & ctl_)
   ctl.logger().removeLogEntry("impact_detected");
   ctl.logger().removeLogEntry("impulsive constraint activation flag");
 
+}
+
+void Get_In_Position_Task::add_param_logs(mc_control::fsm::Controller & ctl_)
+{
+  HammeringTaskNew &ctl = static_cast<HammeringTaskNew &>(ctl_);
+
+  ctl.logger().addLogEntry("params_BSpline_max_duration", this, [&ctl]() { return ctl._magic_BSpline_max_duration; });
+  ctl.logger().addLogEntry("params_BSpline_waypoint_height", this, [&ctl]() { return ctl._magic_bspline_waypoint_height; });
+  ctl.logger().addLogEntry("params_BSpline_normal_final_velocity", this, [&ctl]() { return ctl._magic_normal_final_velocity; });
+  ctl.logger().addLogEntry("params_BSpline_final_velocity", this, [&ctl]() { return ctl._magic_final_velocity; });
+  ctl.logger().addLogEntry("params_BSpline_init_vel", this, [&ctl]() { return ctl._magic_init_vel; });
+  ctl.logger().addLogEntry("params_BSpline_task_weight", this, [&ctl]() { return ctl._magic_BSpline_task_weight; });
+  ctl.logger().addLogEntry("params_BSpline_task_stiffness", this, [&ctl]() { return ctl._magic_BSpline_task_stiffness; });
+  ctl.logger().addLogEntry("params_BSpline_task_damping", this, [&ctl]() { return ctl._magic_BSpline_task_damping; });
+  ctl.logger().addLogEntry("params_hitting_target", this, [&ctl]() { return ctl._magic_hitting_target; });
+
+  ctl.logger().addLogEntry("params_posture_task_weight", this, [&ctl]() { return ctl._magic_posture_task_weight; });
+  ctl.logger().addLogEntry("params_posture_task_stiffness", this, [&ctl]() { return ctl._magic_posture_task_stiffness; });
+
+  ctl.logger().addLogEntry("params_vector_orientation_task_weight", this, [&ctl]() { return ctl._magic_vector_orientation_task_weight; });
+  ctl.logger().addLogEntry("params_vector_orientation_task_stiffness", this, [&ctl]() { return ctl._magic_vector_orientation_task_stiffness; });
+  ctl.logger().addLogEntry("params_vector_orientation_task_damping", this, [&ctl]() { return ctl._magic_vector_orientation_task_damping; });
+
+  ctl.logger().addLogEntry("params_c_res", this, [&ctl]() { return ctl._c_res; });
+  ctl.logger().addLogEntry("params_delta_t", this, [&ctl]() { return ctl._delta_t; });
+  ctl.logger().addLogEntry("params_dt_multi", this, [&ctl]() { return ctl._dt_multi; });
+  ctl.logger().addLogEntry("params_vp", this, [&ctl]() { return ctl._vp; });
+  ctl.logger().addLogEntry("params_lambda_high", this, [&ctl]() { return ctl._lambda_high; });
+  ctl.logger().addLogEntry("params_lambda_low", this, [&ctl]() { return ctl._lambda_low; });
+  ctl.logger().addLogEntry("params_tau_high_multiplier", this, [&ctl]() { return ctl._tau_high_mulitplier; });
+  ctl.logger().addLogEntry("params_K", this, [&ctl]() { return ctl._K; });
+
+  ctl.logger().addLogEntry("params_effective_mass_maximization_task_weight", this, [&ctl]() { return ctl._magic_effective_mass_maximization_task_weight; });
+  ctl.logger().addLogEntry("params_effective_mass_posture_weight", this, [&ctl]() { return ctl._effective_mass_posture_weight; });
+  ctl.logger().addLogEntry("params_effective_mass_posture_stiffness", this, [&ctl]() { return ctl._effective_mass_posture_stiffness; });
+  ctl.logger().addLogEntry("params_linear_impulsive_torque_ctr_flag", this, [&ctl]() { return ctl.linear_impulsive_torque_ctr_flag ? 1.0 : 0.0; });
+}
+
+void Get_In_Position_Task::rm_param_logs(mc_control::fsm::Controller & ctl_)
+{
+  HammeringTaskNew &ctl = static_cast<HammeringTaskNew &>(ctl_);
+
+  ctl.logger().removeLogEntry("params_BSpline_max_duration");
+  ctl.logger().removeLogEntry("params_BSpline_waypoint_height");
+  ctl.logger().removeLogEntry("params_BSpline_normal_final_velocity");
+  ctl.logger().removeLogEntry("params_BSpline_final_velocity");
+  ctl.logger().removeLogEntry("params_BSpline_init_vel");
+  ctl.logger().removeLogEntry("params_BSpline_task_weight");
+  ctl.logger().removeLogEntry("params_BSpline_task_stiffness");
+  ctl.logger().removeLogEntry("params_BSpline_task_damping");
+  ctl.logger().removeLogEntry("params_hitting_target");
+
+  ctl.logger().removeLogEntry("params_posture_task_weight");
+  ctl.logger().removeLogEntry("params_posture_task_stiffness");
+
+  ctl.logger().removeLogEntry("params_vector_orientation_task_weight");
+  ctl.logger().removeLogEntry("params_vector_orientation_task_stiffness");
+  ctl.logger().removeLogEntry("params_vector_orientation_task_damping");
+
+  ctl.logger().removeLogEntry("params_c_res");
+  ctl.logger().removeLogEntry("params_delta_t");
+  ctl.logger().removeLogEntry("params_dt_multi");
+  ctl.logger().removeLogEntry("params_vp");
+  ctl.logger().removeLogEntry("params_lambda_high");
+  ctl.logger().removeLogEntry("params_lambda_low");
+  ctl.logger().removeLogEntry("params_tau_high_multiplier");
+  ctl.logger().removeLogEntry("params_K");
+
+  ctl.logger().removeLogEntry("params_effective_mass_maximization_task_weight");
+  ctl.logger().removeLogEntry("params_effective_mass_posture_weight");
+  ctl.logger().removeLogEntry("params_effective_mass_posture_stiffness");
+  ctl.logger().removeLogEntry("params_linear_impulsive_torque_ctr_flag");
 }
 
 EXPORT_SINGLE_STATE("Get_In_Position_Task", Get_In_Position_Task)

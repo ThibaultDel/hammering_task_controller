@@ -37,6 +37,8 @@ typedef Point point_t;
 typedef ndcurves::curve_constraints<point_t> curve_constraints_t;
 // typedef Eigen::Vector3d vector3_t;
 
+struct HammeringTaskNew;
+
 struct Get_In_Position_Task : mc_control::fsm::State
 {
   void configure(const mc_rtc::Configuration & config) override;
@@ -416,6 +418,9 @@ double compute_effective_mass_with_M(
     @brief remove logging values specific to this state
     */
     void rm_logs(mc_control::fsm::Controller & ctl_);
+
+    void add_param_logs(mc_control::fsm::Controller & ctl_);
+    void rm_param_logs(mc_control::fsm::Controller & ctl_);
 
     bool _create_file = true;
 
