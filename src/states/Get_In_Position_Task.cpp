@@ -40,7 +40,15 @@ void Get_In_Position_Task::start(mc_control::fsm::Controller & ctl_)
   // The target is the translation of the nail
   _nail_point = ctl._magic_hitting_target;
   _end_point = _nail_point + Eigen::Vector3d(0, 0, 0);
-  _posWp = {};
+
+  Eigen::Vector3d init_pos = ctl.robot().frame(ctl.hammer_head_frame_name).position().translation();
+  Eigen::Vector3d mid_point = (init_pos + _end_point) / 2.0;
+  double current_height = (mid_point - _end_point).dot(ctl.nail_normal_vector_world_frame);
+  if(current_height < ctl._magic_bspline_waypoint_height)
+  {
+    mid_point += ctl.nail_normal_vector_world_frame * (ctl._magic_bspline_waypoint_height - current_height);
+  }
+  _posWp = {mid_point};
 
   // _end_point[2] += 0.02;
   // _target = sva::PTransformd(_end_point);
