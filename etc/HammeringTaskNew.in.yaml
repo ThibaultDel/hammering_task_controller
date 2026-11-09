@@ -193,8 +193,9 @@ states:
       magic_posture_task_weight: 10
       magic_posture_task_stiffness: 1
       magic_posture_task_epsilon: 0.15
-      transform_task_stiffness: 30
-      transform_task_damping: 25
+      post_impact_get_away_distance: 0.2
+      transform_task_stiffness: 15
+      transform_task_damping: 7.5
       transform_task_weight: 100
       magic_BSpline_task_dimweight_x: 1
       magic_BSpline_task_dimweight_y: 1

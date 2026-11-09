@@ -27,6 +27,11 @@ void HammeringTaskNew_Initial::start(mc_control::fsm::Controller & ctl_)
   // ctl.getPostureTask(ctl_.robot().name())->stiffness(100);
   // ctl.getPostureTask(ctl_.robot().name())->resetJointsSelector(ctl_.solver());
   // mc_rtc::log::info("posture dimweights are: {}",ctl.getPostureTask(ctl_.robot().name())->dimWeight());
+  if(ctl.base_posture_vector.empty())
+  {
+    ctl.base_posture_vector = ctl.getPostureTask(ctl.robot().name())->posture();
+  }
+  ctl.getPostureTask(ctl.robot().name())->posture(ctl.base_posture_vector);
   ctl.getPostureTask(ctl.robot().name())->stiffness(ctl.base_posture_stiffness);
   ctl.getPostureTask(ctl.robot().name())->weight(ctl.base_posture_weight);
   ctl.getPostureTask(ctl.robot().name())->damping(ctl.base_posture_damping);
