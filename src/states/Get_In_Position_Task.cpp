@@ -215,7 +215,11 @@ bool Get_In_Position_Task::run(mc_control::fsm::Controller & ctl_)
 
   // ------------------------- Stop hammering conditions  ----------------------------
 
-  ctl.impact_detected = ctl.robot().forceSensor("LeftHandForceSensor").force().norm()>=ctl.magic_force_threshold_sensor;
+  // Only allow force sensor impact detection if hammer is within ~10cm of the nail
+  bool near_nail = (ctl.hammer_tip_actual_position_vector[2] - ctl._magic_hitting_target[2]) < 0.10;
+
+  ctl.impact_detected = near_nail && 
+      (ctl.robot().forceSensor("LeftHandForceSensor").force().norm() >= ctl.magic_force_threshold_sensor);
 
   double impact_detection_position_threshold = 0.02;
   bool height_stop_offset=0.01;
